@@ -1,5 +1,5 @@
 """
-app.py — Preventum Labs Fraud Intelligence Platform
+app.py — FraudLens Fraud Intelligence Platform
 Flask Backend
 """
 
@@ -40,9 +40,9 @@ def load_models():
         feature_cols = joblib.load(fc_path)
         if os.path.exists(mt_path):
             model_metrics = joblib.load(mt_path)
-        print("[Preventum] Models loaded successfully.")
+        print("[FraudLens] Models loaded successfully.")
     else:
-        print("[Preventum] WARNING: Model files not found. Run train_model.py first.")
+        print("[FraudLens] WARNING: Model files not found. Run train_model.py first.")
 
 load_models()
 
@@ -54,7 +54,7 @@ def compute_stats():
     if _stats_cache:
         return _stats_cache
 
-    print("[Preventum] Computing dataset statistics...")
+    print("[FraudLens] Computing dataset statistics...")
     df = pd.read_csv(DATA_PATH, nrows=50000)
     df["trans_date_trans_time"] = pd.to_datetime(df["trans_date_trans_time"])
     df["hour"] = df["trans_date_trans_time"].dt.hour
@@ -88,7 +88,7 @@ def compute_stats():
         "legit_by_category": legit_by_category,
         "fraud_by_hour": fraud_by_hour,
     }
-    print("[Preventum] Stats computed.")
+    print("[FraudLens] Stats computed.")
     return _stats_cache
 
 

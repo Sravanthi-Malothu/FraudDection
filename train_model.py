@@ -1,6 +1,6 @@
 """
 train_model.py — Fraud Detection Model Training Script
-Preventum Labs | Fraud Intelligence Platform
+FraudLens | Fraud Intelligence Platform
 """
 
 import pandas as pd
@@ -82,7 +82,7 @@ FEATURE_COLS = [
 
 def main():
     print("=" * 60)
-    print("  Preventum Labs — Fraud Detection Model Training")
+    print("  FraudLens — Fraud Detection Model Training")
     print("=" * 60)
     print(f"\nLoading dataset (100,000 rows)...")
     df = pd.read_csv(DATA_PATH, nrows=100000)

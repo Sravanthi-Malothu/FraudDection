@@ -1,4 +1,4 @@
-# Preventum Labs — Fraud Intelligence Platform
+# FraudLens — Fraud Intelligence Platform
 
 A professional fraud detection dashboard powered by machine learning (Random Forest + XGBoost), built with Flask and a dark-themed fintech UI.
 

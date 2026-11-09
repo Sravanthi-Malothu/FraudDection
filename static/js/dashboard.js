@@ -1,5 +1,5 @@
 /**
- * dashboard.js — Preventum Labs Fraud Intelligence Platform
+ * dashboard.js — FraudLens Fraud Intelligence Platform
  * Client-side logic: charts, API calls, transaction history
  */
 
