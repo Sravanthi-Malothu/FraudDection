@@ -90,8 +90,28 @@ POST /api/predict
 ## Features
 - **Glass morphism dark UI** with animated charts (Chart.js)
 - **Real-time analysis** via POST form → prediction result
-- **Ensemble model** (RF + XGB averaged confidence)
+- **Ensemble model** (Random Forest + XGBoost averaged confidence)
+- **Leakage-safe per-card behavioural features** (txn counts over 1h/24h, card amount mean/std/zscore, time/distance since last txn, new merchant & category flags) — past transactions only
 - **KPI cards** with dataset-level fraud statistics
 - **Transaction history table** (last 20 analyzed)
 - **30-second polling** for simulated live updates
-- **Model performance panel** (Accuracy, Precision, Recall, F1, AUC)
+- **Model performance panel** (Precision, Recall, F1, ROC-AUC, PR-AUC; accuracy is not a headline metric)
+
+## Evaluation (time-based, leakage-safe)
+
+`train_model.py` evaluates with a rigorous, leakage-safe methodology:
+
+- **Train:** `fraudTrain.csv` (full dataset, no subsampling), sorted by `trans_date_trans_time`.
+- **Validation:** last 15% of `fraudTrain.csv` by time (85/15 time split — never random). Used for XGBoost early stopping and fraud-class F1 threshold selection.
+- **Test:** `fraudTest.csv` held out strictly as the final test set. Test features are computed on `train + test` history so per-card history carries over, using only past transactions (`shift` / `rolling(closed='left')` — the current row is never included).
+
+### Ablation: baseline features vs baseline + behavioural features (test set)
+
+Run `python3 train_model.py` (requires `fraudTrain.csv`) to populate:
+
+| Model | PR-AUC | ROC-AUC | Precision | Recall | F1 |
+|-------|--------|---------|-----------|--------|----|
+| XGBoost — baseline features | — | — | — | — | — |
+| XGBoost — baseline + behavioural | — | — | — | — | — |
+
+Metrics and plots are saved to `models/metrics.json` and `docs/` (`roc_curve.png`, `pr_curve.png`, `confusion_matrix.png`).
