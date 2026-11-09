@@ -18,31 +18,31 @@ CORS(app)
 DATA_PATH  = "/Users/sravanthimalothu/Desktop/FraudDecetion/fraudTest.csv"
 MODELS_DIR = "/Users/sravanthimalothu/Desktop/FraudDecetion/models"
 
-# ── Load models at startup ─────────────────────────────────────────────────────
-rf_model      = None
-xgb_model     = None
-le_category   = None
-feature_cols  = None
-model_metrics = None
+# ── Load final model at startup ────────────────────────────────────────────────
+final_model       = None
+final_model_type  = None
+le_category       = None
+feature_cols      = None
+model_metrics     = None
 
 def load_models():
-    global rf_model, xgb_model, le_category, feature_cols, model_metrics
-    rf_path  = os.path.join(MODELS_DIR, "random_forest.joblib")
-    xgb_path = os.path.join(MODELS_DIR, "xgboost.joblib")
-    le_path  = os.path.join(MODELS_DIR, "le_category.joblib")
-    fc_path  = os.path.join(MODELS_DIR, "feature_cols.joblib")
-    mt_path  = os.path.join(MODELS_DIR, "metrics.joblib")
+    global final_model, final_model_type, le_category, feature_cols, model_metrics
+    final_path = os.path.join(MODELS_DIR, "final_model.joblib")
+    le_path    = os.path.join(MODELS_DIR, "le_category.joblib")
+    fc_path    = os.path.join(MODELS_DIR, "feature_cols.joblib")
+    mt_path    = os.path.join(MODELS_DIR, "metrics.json")
 
-    if all(os.path.exists(p) for p in [rf_path, xgb_path, le_path, fc_path]):
-        rf_model     = joblib.load(rf_path)
-        xgb_model    = joblib.load(xgb_path)
-        le_category  = joblib.load(le_path)
-        feature_cols = joblib.load(fc_path)
+    if os.path.exists(final_path) and os.path.exists(le_path) and os.path.exists(fc_path):
+        final_model    = joblib.load(final_path)
+        le_category    = joblib.load(le_path)
+        feature_cols   = joblib.load(fc_path)
         if os.path.exists(mt_path):
-            model_metrics = joblib.load(mt_path)
-        print("[FraudLens] Models loaded successfully.")
+            with open(mt_path) as f:
+                model_metrics = json.load(f)
+            final_model_type = model_metrics.get("final_model", {}).get("type")
+        print("[FraudLens] Final model loaded successfully.")
     else:
-        print("[FraudLens] WARNING: Model files not found. Run train_model.py first.")
+        print("[FraudLens] WARNING: Final model files not found. Run train_model.py first.")
 
 load_models()
 
@@ -146,6 +146,17 @@ def build_feature_row(data):
         "long": lon,
         "merch_lat": merch_lat,
         "merch_long": merch_long,
+        # Behavioural features for a single transaction with no prior card
+        # history (defaults match the NaN guards in train_model.py):
+        "txn_count_1h": 0,
+        "txn_count_24h": 0,
+        "amt_mean_card_past": 0,
+        "amt_std_card_past": 1,
+        "amt_zscore": 0,
+        "time_since_last_txn": -1,
+        "distance_from_last_txn_km": -1,
+        "is_new_merchant_for_card": 1,
+        "is_new_category_for_card": 1,
     }
 
 
@@ -191,7 +202,25 @@ def api_model_metrics():
             "xgb": {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0, "auc": 0},
             "status": "models_not_trained"
         })
-    return jsonify(model_metrics)
+    comparison = model_metrics.get("model_comparison", {})
+    legacy = {}
+    for key in ["random_forest", "xgboost", "ensemble"]:
+        m = comparison.get(key, {}).get("test", {})
+        cm = m.get("confusion_matrix", {})
+        total = cm.get("tn", 0) + cm.get("fp", 0) + cm.get("fn", 0) + cm.get("tp", 0)
+        accuracy = (cm.get("tn", 0) + cm.get("tp", 0)) / total if total else 0.0
+        legacy[key] = {
+            "accuracy": round(accuracy, 4),
+            "precision": m.get("precision", 0),
+            "recall": m.get("recall", 0),
+            "f1": m.get("f1", 0),
+            "auc": m.get("roc_auc", 0),
+            "pr_auc": m.get("pr_auc", 0),
+            "val_pr_auc": comparison.get(key, {}).get("val_pr_auc", 0),
+        }
+    legacy["final_model"] = model_metrics.get("final_model", {})
+    legacy["status"] = "ok"
+    return jsonify(legacy)
 
 
 @app.route("/api/fraud-by-category")
@@ -208,9 +237,9 @@ def api_fraud_by_hour():
 
 @app.route("/api/predict", methods=["POST"])
 def api_predict():
-    if rf_model is None or xgb_model is None:
+    if final_model is None or feature_cols is None:
         return jsonify({
-            "error": "Models not loaded. Run train_model.py first.",
+            "error": "Final model not loaded. Run train_model.py first.",
             "status": 503
         }), 503
 
@@ -219,10 +248,8 @@ def api_predict():
         row  = build_feature_row(data)
         X    = pd.DataFrame([row])[feature_cols]
 
-        # Ensemble: average probabilities
-        rf_proba  = rf_model.predict_proba(X)[0][1]
-        xgb_proba = xgb_model.predict_proba(X)[0][1]
-        confidence = float((rf_proba + xgb_proba) / 2)
+        proba = final_model.predict_proba(X)[0][1]
+        confidence = float(proba)
         is_fraud   = int(confidence >= 0.5)
 
         if confidence >= 0.75:
@@ -232,13 +259,21 @@ def api_predict():
         else:
             risk_level = "LOW"
 
+        # Expose component scores when the final model is an ensemble
+        rf_score = xgb_score = confidence
+        if (final_model_type == "ensemble"
+                and hasattr(final_model, "model_a")
+                and hasattr(final_model, "model_b")):
+            rf_score  = float(final_model.model_a.predict_proba(X)[0][1])
+            xgb_score = float(final_model.model_b.predict_proba(X)[0][1])
+
         risk_factors = identify_risk_factors(row, confidence)
 
         return jsonify({
             "is_fraud":     is_fraud,
             "confidence":   round(confidence * 100, 2),
-            "rf_score":     round(float(rf_proba) * 100, 2),
-            "xgb_score":    round(float(xgb_proba) * 100, 2),
+            "rf_score":     round(rf_score * 100, 2),
+            "xgb_score":    round(xgb_score * 100, 2),
             "risk_level":   risk_level,
             "risk_factors": risk_factors,
         })
