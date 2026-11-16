@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+# Explicit feature columns used for model input (excludes leaking identifiers)
 FEATURE_COLS = [
     "amt",
     "amt_log",
@@ -25,6 +26,24 @@ FEATURE_COLS = [
     "long",
     "merch_lat",
     "merch_long",
+]
+
+# Sensitive or leaking identifier columns explicitly excluded from model features
+IDENTIFIER_COLS = [
+    "cc_num",
+    "trans_num",
+    "first",
+    "last",
+    "street",
+    "city",
+    "state",
+    "zip",
+    "job",
+    "dob",
+    "trans_date_trans_time",
+    "unix_time",
+    "merchant",
+    "Unnamed: 0",
 ]
 
 KNOWN_CATEGORIES = [
@@ -47,7 +66,7 @@ KNOWN_CATEGORIES = [
 
 def haversine(lat1, lon1, lat2, lon2):
     """
-    Compute great-circle distance between pairs of coordinates in kilometers.
+    Compute great-circle distance between coordinate pairs in kilometers.
     Accepts floats or numpy arrays.
     """
     R = 6371.0  # Earth radius in kilometers
@@ -68,10 +87,12 @@ def haversine(lat1, lon1, lat2, lon2):
 def engineer_features(df, le_category=None, fit=False):
     """
     Transforms raw credit card transaction DataFrame into model feature matrix.
+    When fit=True, encoders are fit on the provided data (training split only).
+    When fit=False, previously fitted encoders are applied to prevent leakage.
     """
     df = df.copy()
 
-    # Temporal features
+    # Temporal features (derived from timestamp without exposing timestamp string)
     df["trans_date_trans_time"] = pd.to_datetime(df["trans_date_trans_time"])
     df["hour"] = df["trans_date_trans_time"].dt.hour
     df["day_of_week"] = df["trans_date_trans_time"].dt.dayofweek
@@ -100,13 +121,13 @@ def engineer_features(df, le_category=None, fit=False):
     # Demographics & Category Encoding
     df["gender_enc"] = (df["gender"] == "M").astype(int)
 
-    if le_category is None:
-        le_category = LabelEncoder()
-        le_category.fit(KNOWN_CATEGORIES)
-
     if fit:
+        le_category = LabelEncoder()
         df["category_enc"] = le_category.fit_transform(df["category"].astype(str))
     else:
+        if le_category is None:
+            le_category = LabelEncoder()
+            le_category.fit(KNOWN_CATEGORIES)
         known_set = set(le_category.classes_)
         safe_cats = df["category"].apply(lambda c: c if c in known_set else le_category.classes_[0])
         df["category_enc"] = le_category.transform(safe_cats.astype(str))
@@ -117,6 +138,7 @@ def engineer_features(df, le_category=None, fit=False):
 def build_feature_dict(data, le_category=None):
     """
     Build a single 15-feature dictionary from incoming API request dictionary.
+    Excludes all raw identifiers (card numbers, transaction hashes, person names).
     """
     amt = float(data.get("amt", 50.0))
     category = str(data.get("category", "shopping_net")).lower()
@@ -136,7 +158,7 @@ def build_feature_dict(data, le_category=None):
     distance = float(haversine(lat, lon, merch_lat, merch_long))
     gender_enc = 1 if gender == "M" else 0
 
-    if le_category is not None:
+    if le_category is not None and hasattr(le_category, "classes_"):
         known = set(le_category.classes_)
         safe_cat = category if category in known else le_category.classes_[0]
         category_enc = int(le_category.transform([safe_cat])[0])
