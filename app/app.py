@@ -20,7 +20,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.features import build_feature_dict, FEATURE_COLS
 from src.explain import identify_risk_triggers
-from src.train import AveragedEnsemble
+from src.ensemble import AveragedEnsemble
+
+# Ensure pickle compatibility
+setattr(sys.modules["__main__"], "AveragedEnsemble", AveragedEnsemble)
 
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"

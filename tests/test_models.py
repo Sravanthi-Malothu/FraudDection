@@ -3,7 +3,7 @@ import pytest
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from src.evaluate import compute_metrics, find_optimal_threshold
-from src.train import AveragedEnsemble
+from src.ensemble import AveragedEnsemble
 
 
 def test_compute_metrics_perfect():
