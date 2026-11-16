@@ -90,11 +90,11 @@ def generate_feature_reason(name, val, shap_val, feature_dict=None):
 
     elif name in ("amt", "amt_log"):
         if val > 500:
-            return f"High financial transfer value of €{val:,.2f}"
+            return f"High financial transfer value of ${val:,.2f}"
         elif val > 200:
-            return f"Moderate-to-high transaction size of €{val:,.2f}"
+            return f"Moderate-to-high transaction size of ${val:,.2f}"
         else:
-            return f"Low monetary amount (€{val:,.2f}) typical of legitimate retail activity"
+            return f"Low monetary amount (${val:,.2f}) typical of legitimate retail activity"
 
     elif name == "txn_count_last_1h":
         if val >= 2:
@@ -112,9 +112,9 @@ def generate_feature_reason(name, val, shap_val, feature_dict=None):
 
     elif name == "amt_sum_last_24h":
         if val > 1000:
-            return f"Substantial 24-hour cumulative spend of €{val:,.2f} on this card"
+            return f"Substantial 24-hour cumulative spend of ${val:,.2f} on this card"
         else:
-            return f"Modest 24-hour cumulative card volume of €{val:,.2f}"
+            return f"Modest 24-hour cumulative card volume of ${val:,.2f}"
 
     elif name == "time_since_last_txn":
         if 0 <= val < 120:
@@ -267,7 +267,7 @@ def identify_risk_triggers(feature_dict, confidence=0.5):
     if amt_vs_avg >= 4.0:
         factors.append({
             "title": "Severe Amount Spike vs Card Baseline",
-            "desc": f"Transaction is {amt_vs_avg:.1f}x larger than cardholder's historical average (€{amt:,.2f}).",
+            "desc": f"Transaction is {amt_vs_avg:.1f}x larger than cardholder's historical average (${amt:,.2f}).",
             "type": "Triggered rule",
             "tag_class": "badge-triggered",
             "link_text": "View card history",
@@ -275,7 +275,7 @@ def identify_risk_triggers(feature_dict, confidence=0.5):
     elif amt >= 2000:
         factors.append({
             "title": "Unusual High-Value Transfer",
-            "desc": f"Transaction amount of €{amt:,.2f} is significantly above standard commercial benchmarks.",
+            "desc": f"Transaction amount of ${amt:,.2f} is significantly above standard commercial benchmarks.",
             "type": "Triggered rule",
             "tag_class": "badge-triggered",
             "link_text": "View transactions",
@@ -480,7 +480,7 @@ The top 10 most influential features driving the model's predictions, ranked by 
 ### A. Relative Behavioral Anomaly vs. Raw Spend
 A major weakness of naive fraud detection rules is flagging all high-dollar transactions, which causes severe false positives for high-net-worth customers while missing small test transactions on stolen cards.
 - The model learned that **`amt_vs_card_avg`** and **`amt_zscore_vs_card`** are vastly more predictive than raw `amt` alone.
-- A €300 transaction on a card whose average is €15 has a massive positive SHAP contribution (+3.2 log-odds), whereas a €300 transaction on a card whose average is €350 receives a negative SHAP contribution (-1.1 log-odds).
+- A $300 transaction on a card whose average is $15 has a massive positive SHAP contribution (+3.2 log-odds), whereas a $300 transaction on a card whose average is $350 receives a negative SHAP contribution (-1.1 log-odds).
 
 ### B. Geographic Velocity & Impossible Travel
 - **`distance_from_last_txn_km`** captures physical impossibilities (e.g. card used in New York and 20 minutes later in London or Los Angeles). High values consistently drive strong positive fraud attribution.

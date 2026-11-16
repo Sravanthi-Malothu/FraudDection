@@ -1,33 +1,46 @@
 """
 app.py — Sentra Fraud & AML Intelligence Platform
-Flask Backend for Alert Investigation & Machine Learning Scoring
+Production Flask Backend for Real-Time ML Scoring, Alert Investigation,
+SHAP Explainability, and SQLite Decision Persistence.
 """
 
 import math
 import json
+import sqlite3
+import logging
 import joblib
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, send_from_directory
 from flask_cors import CORS
 
-# Dynamically resolve project root without hardcoded user paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# ── Configure Logging ──────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("sentra.api")
+
 from src.features import build_feature_dict, FEATURE_COLS
-from src.explain import identify_risk_triggers
+from src.explain import explain_transaction, identify_risk_triggers, get_best_model_and_explainer
 from src.ensemble import AveragedEnsemble
 
-# Ensure pickle compatibility
+# Ensure pickle compatibility across invocations
 setattr(sys.modules["__main__"], "AveragedEnsemble", AveragedEnsemble)
 
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
+DOCS_DIR = PROJECT_ROOT / "docs"
 DATA_PATH = DATA_DIR / "fraudTest.csv"
+DB_PATH = DATA_DIR / "decisions.db"
+ALERTS_CACHE_PATH = DATA_DIR / "alerts_cache.json"
 
 app = Flask(
     __name__,
@@ -35,6 +48,64 @@ app = Flask(
     static_folder=str(Path(__file__).resolve().parent / "static"),
 )
 CORS(app)
+
+# ── SQLite Database Setup for Analyst Decisions ────────────────────────────────
+def init_db():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS decisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                analyst TEXT DEFAULT 'Anna Reyes',
+                notes TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_alert_id ON decisions(alert_id)")
+        conn.commit()
+
+
+def save_analyst_decision(alert_id, decision, analyst="Anna Reyes", notes=""):
+    init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO decisions (alert_id, decision, analyst, notes, created_at) VALUES (?, ?, ?, ?, ?)",
+            (alert_id, decision, analyst, notes, now_iso),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_latest_decision_for_alert(alert_id):
+    init_db()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM decisions WHERE alert_id = ? ORDER BY id DESC LIMIT 1",
+            (alert_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_all_decisions_for_alert(alert_id):
+    init_db()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM decisions WHERE alert_id = ? ORDER BY id DESC",
+            (alert_id,),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
+
+init_db()
 
 # ── Load ML Models at Startup ──────────────────────────────────────────────────
 rf_model = None
@@ -46,10 +117,13 @@ feature_cols = None
 model_metrics = None
 model_metadata = None
 cat_fraud_rates = None
+tree_explainer = None
 
 
 def load_models():
-    global rf_model, xgb_model, lr_model, ensemble_model, le_category, feature_cols, model_metrics, model_metadata, cat_fraud_rates
+    global rf_model, xgb_model, lr_model, ensemble_model, le_category
+    global feature_cols, model_metrics, model_metadata, cat_fraud_rates, tree_explainer
+
     rf_path = MODELS_DIR / "random_forest.joblib"
     xgb_path = MODELS_DIR / "xgboost.joblib"
     lr_path = MODELS_DIR / "logistic_regression.joblib"
@@ -60,12 +134,12 @@ def load_models():
     cfr_path = MODELS_DIR / "category_fraud_rates.joblib"
     meta_path = MODELS_DIR / "metadata.json"
 
-    if rf_path.exists() or xgb_path.exists() or ens_path.exists():
+    if xgb_path.exists() or rf_path.exists() or ens_path.exists():
         try:
-            if rf_path.exists():
-                rf_model = joblib.load(rf_path)
             if xgb_path.exists():
                 xgb_model = joblib.load(xgb_path)
+            if rf_path.exists():
+                rf_model = joblib.load(rf_path)
             if lr_path.exists():
                 lr_model = joblib.load(lr_path)
             if ens_path.exists():
@@ -83,373 +157,109 @@ def load_models():
             if meta_path.exists():
                 with open(meta_path) as f:
                     model_metadata = json.load(f)
-            print("[Sentra] ML Models loaded successfully.")
+
+            # Initialize SHAP explainer
+            try:
+                best_m, expl = get_best_model_and_explainer(MODELS_DIR)
+                tree_explainer = expl
+            except Exception as e:
+                print(f"[Sentra] TreeExplainer init warning: {e}")
+
+            logger.info("ML Models loaded successfully.")
         except Exception as e:
-            print(f"[Sentra] Error loading models: {e}")
+            logger.error(f"Error loading models: {e}")
     else:
-        print(f"[Sentra] Models not found in {MODELS_DIR}. Run 'python src/train.py' first.")
+        logger.warning(f"Models not found in {MODELS_DIR}. Run 'python src/train.py' first.")
+
+
+def get_model_version():
+    """Returns the trained model identifier and version string."""
+    if model_metadata:
+        version = model_metadata.get("metadata_version", "1.0")
+        best_model = model_metadata.get("best_two_models", ["xgboost"])[0]
+        return f"{best_model}-v{version}"
+    return "xgboost-v1.0"
 
 
 load_models()
 
-# ── Curated Investigation Alerts Database ──────────────────────────────────────
-INVESTIGATION_ALERTS = {
-    "ALT-10482": {
-        "id": "ALT-10482",
-        "assigned_to": "Anna Reyes",
-        "title": "Alert Investigation",
-        "flagged_amount": "€9,800",
-        "flagged_amount_raw": 9800.0,
-        "payment_type": "SEPA Instant • Account 4821",
-        "risk_score": 94,
-        "risk_level": "High risk",
-        "detected_time": "12:48 CET",
-        "detected_reason": "Rapid onward transfers",
-        "sla_left": "12 min",
-        "sla_due": "Due 14:12 CET",
-        "status": "In review",
-        "status_color": "green",
-        "timeline": [
-            {
-                "time": "12:40",
-                "dot_color": "green",
-                "title": "€9,800 transfer completed",
-                "account": "Marta Kowalska • Account •4821",
-                "subtext": "•4821 → •9134 • TX-7814",
-            },
-            {
-                "time": "12:48",
-                "dot_color": "amber",
-                "title": "€9,600 sent onward",
-                "account": "David Oister • Account •9134",
-                "subtext": "•9134 → •7712 • TX-7819",
-            },
-            {
-                "time": "12:48",
-                "dot_color": "red",
-                "title": "Alert triggered",
-                "title_color": "red",
-                "account": "External account •7712",
-                "subtext": "Rapid onward transfers",
-            },
-        ],
-        "triggers": [
-            {
-                "title": "Rapid onward transfer",
-                "desc": "€9,600 sent from •9134 eight minutes after a €9,800 credit.",
-                "type": "Triggered rule",
-                "tag_class": "badge-triggered",
-                "link_text": "View transactions",
-            },
-            {
-                "title": "No prior transfers to this beneficiary in 90 days",
-                "desc": "No earlier transfers from •4821 to •9134 in the 90-day history.",
-                "type": "Risk signal",
-                "tag_class": "badge-signal",
-                "link_text": "View transfer history",
-            },
-            {
-                "title": "Shared device fingerprint",
-                "desc": "Session logs link D-074 to accounts •9134 and •6602 in the past 24 hours.",
-                "type": "Risk signal",
-                "tag_class": "badge-signal",
-                "link_text": "View device log",
-            },
-        ],
-        "explore_connections": {
-            "path": "•4821 → •9134 → •7712",
-            "headline": "Connected Alerts & Devices",
-            "desc": "ALT-90228 • Lucas Martin • Account •6602 shares device fingerprint D-074 with •9134.",
-            "link_text": "Open Connection Graph",
-        },
-        "customer": {
-            "name": "Marta Kowalska",
-            "id_badge": "ID 4821 • Premium account • since 2021",
-            "typical_amount": "€40–€380",
-            "largest_prior": "€1,120",
-            "session_device": "New",
-            "device_class": "amber",
-            "payment_channel": "Mobile banking",
-            "phone": "+48 501 234 892",
-            "email": "marta.kowalska@client.pl",
-            "city": "Warsaw, PL",
-        },
-        "beneficiary": {
-            "name": "David Oister",
-            "account_num": "Account •9134",
-            "bank": "mBank S.A.",
-            "country": "Poland (PL)",
-            "watchlist_status": "Flagged (Level 2 High Velocity)",
-            "external_dest": "Revolut Ltd •7712 (UK/LT)",
-        },
-        "ai_insight": {
-            "badge": "Unverified",
-            "title": "Possible pass-through activity",
-            "desc": "Check whether the shared device and rapid onward transfer have a legitimate explanation. Model ensemble identifies anomalous velocity with 94.0% confidence.",
-            "button_text": "Review Sources",
-        },
-        "evidences_count": "4 evidence items saved • 1 verified • 3 to verify",
-    },
-    "ALT-10483": {
-        "id": "ALT-10483",
-        "assigned_to": "Anna Reyes",
-        "title": "Alert Investigation",
-        "flagged_amount": "$1,077.69",
-        "flagged_amount_raw": 1077.69,
-        "payment_type": "Visa Debit • Account 5478",
-        "risk_score": 91,
-        "risk_level": "High risk",
-        "detected_time": "22:38 CET",
-        "detected_reason": "High-value online shopping at unusual hour",
-        "sla_left": "28 min",
-        "sla_due": "Due 15:30 CET",
-        "status": "In review",
-        "status_color": "green",
-        "timeline": [
-            {
-                "time": "18:15",
-                "dot_color": "green",
-                "title": "$34.10 grocery purchase",
-                "account": "William Perry • Card •5478",
-                "subtext": "Denham Springs, LA • POS-291",
-            },
-            {
-                "time": "22:38",
-                "dot_color": "amber",
-                "title": "$1,077.69 online order",
-                "account": "fraud_Heathcote, Yost and Kertzmann",
-                "subtext": "Shopping Net • E-Commerce gateway",
-            },
-            {
-                "time": "22:38",
-                "dot_color": "red",
-                "title": "Alert triggered",
-                "title_color": "red",
-                "account": "Cardholder account •5478",
-                "subtext": "XGBoost score 93.28% • Extreme amt outlier",
-            },
-        ],
-        "triggers": [
-            {
-                "title": "Amount Spike Outlier",
-                "desc": "Transaction amount of $1,077.69 is 15x higher than cardholder's 30-day mean ($71.40).",
-                "type": "Triggered rule",
-                "tag_class": "badge-triggered",
-                "link_text": "View transactions",
-            },
-            {
-                "title": "Off-hours high risk merchant",
-                "desc": "Cardholder rarely transacts between 22:00–06:00.",
-                "type": "Risk signal",
-                "tag_class": "badge-signal",
-                "link_text": "View merchant details",
-            },
-            {
-                "title": "IP Location Discrepancy",
-                "desc": "Geo-IP shows merchant processed 420 km away from cardholder home address.",
-                "type": "Risk signal",
-                "tag_class": "badge-signal",
-                "link_text": "View geo telemetry",
-            },
-        ],
-        "explore_connections": {
-            "path": "•5478 → Heathcote Gateway → •8821",
-            "headline": "Merchant Merchant Cluster",
-            "desc": "Merchant ID flagged in 14 suspicious card-not-present chargebacks in past 7 days.",
-            "link_text": "Open Connection Graph",
-        },
-        "customer": {
-            "name": "William Perry",
-            "id_badge": "ID 5478 • Standard account • since 2019",
-            "typical_amount": "$25–$95",
-            "largest_prior": "$210.00",
-            "session_device": "Unknown Chrome Browser",
-            "device_class": "amber",
-            "payment_channel": "Web E-commerce",
-            "phone": "+1 (225) 555-0194",
-            "email": "w.perry@provider.com",
-            "city": "Denham Springs, LA",
-        },
-        "beneficiary": {
-            "name": "Heathcote, Yost and Kertzmann",
-            "account_num": "Merchant Acct •8821",
-            "bank": "First E-Commerce Bank",
-            "country": "United States (US)",
-            "watchlist_status": "High Chargeback Ratio (>3.8%)",
-            "external_dest": "Payment Processor Gateway 04",
-        },
-        "ai_insight": {
-            "badge": "Unverified",
-            "title": "Card-Not-Present Credential Stuffing",
-            "desc": "Likely credential theft or compromised card details used at late night on electronics/shopping portal.",
-            "button_text": "Review Sources",
-        },
-        "evidences_count": "3 evidence items saved • 1 verified • 2 to verify",
-    },
-    "ALT-10484": {
-        "id": "ALT-10484",
-        "assigned_to": "Anna Reyes",
-        "title": "Alert Investigation",
-        "flagged_amount": "$780.52",
-        "flagged_amount_raw": 780.52,
-        "payment_type": "Mastercard • Account 0820",
-        "risk_score": 88,
-        "risk_level": "High risk",
-        "detected_time": "22:37 CET",
-        "detected_reason": "Rapid cross-merchant velocity",
-        "sla_left": "35 min",
-        "sla_due": "Due 16:00 CET",
-        "status": "In review",
-        "status_color": "green",
-        "timeline": [
-            {
-                "time": "22:32",
-                "dot_color": "green",
-                "title": "$780.52 misc net order",
-                "account": "Douglas Willis • Card •0820",
-                "subtext": "fraud_Rodriguez, Yost and Jenkins",
-            },
-            {
-                "time": "22:37",
-                "dot_color": "amber",
-                "title": "$620.33 entertainment ticket",
-                "account": "fraud_Nienow PLC",
-                "subtext": "Same card 5 minutes later",
-            },
-            {
-                "time": "22:37",
-                "dot_color": "red",
-                "title": "Alert triggered",
-                "title_color": "red",
-                "account": "Cardholder account •0820",
-                "subtext": "Dual transaction burst ($1,400.85 total)",
-            },
-        ],
-        "triggers": [
-            {
-                "title": "High Velocity Double Dipping",
-                "desc": "Two high-value online transactions within 5 minutes totaling $1,400.85.",
-                "type": "Triggered rule",
-                "tag_class": "badge-triggered",
-                "link_text": "View transactions",
-            },
-            {
-                "title": "New Merchant Category",
-                "desc": "First time spending in misc_net and entertainment categories.",
-                "type": "Risk signal",
-                "tag_class": "badge-signal",
-                "link_text": "View category breakdown",
-            },
-        ],
-        "explore_connections": {
-            "path": "•0820 → Rodriguez Gateway → Nienow PLC",
-            "headline": "Velocity Attack Pattern",
-            "desc": "Automated bot pattern executing multiple authorization requests in rapid succession.",
-            "link_text": "Open Connection Graph",
-        },
-        "customer": {
-            "name": "Douglas Willis",
-            "id_badge": "ID 0820 • Gold account • since 2018",
-            "typical_amount": "$30–$140",
-            "largest_prior": "$350.00",
-            "session_device": "Android App v4.2",
-            "device_class": "green",
-            "payment_channel": "API / Web Checkout",
-            "phone": "+1 (608) 555-0812",
-            "email": "d.willis@benton.org",
-            "city": "Benton, WI",
-        },
-        "beneficiary": {
-            "name": "Rodriguez & Nienow Merchants",
-            "account_num": "Merchant Multi-Acct",
-            "bank": "JPMorgan Chase",
-            "country": "United States (US)",
-            "watchlist_status": "Velocity Flagged",
-            "external_dest": "Digital Goods Merchant Hub",
-        },
-        "ai_insight": {
-            "badge": "Unverified",
-            "title": "Burst Velocity Exploitation",
-            "desc": "Fraudster testing stolen card limit before fraud detection cutoff. Recommendation: Temporarily hold authorizations pending customer confirmation.",
-            "button_text": "Review Sources",
-        },
-        "evidences_count": "5 evidence items saved • 2 verified • 3 to verify",
-    },
-    "ALT-10485": {
-        "id": "ALT-10485",
-        "assigned_to": "Anna Reyes",
-        "title": "Alert Investigation",
-        "flagged_amount": "$2.86",
-        "flagged_amount_raw": 2.86,
-        "payment_type": "Debit Card • Account 7244",
-        "risk_score": 4,
-        "risk_level": "Low risk",
-        "detected_time": "12:14 CET",
-        "detected_reason": "Low value personal care POS",
-        "sla_left": "Cleared",
-        "sla_due": "Auto-approved",
-        "status": "Approved",
-        "status_color": "green",
-        "timeline": [
-            {
-                "time": "12:14",
-                "dot_color": "green",
-                "title": "$2.86 in-store purchase",
-                "account": "Jeff Elliott • Card •7244",
-                "subtext": "fraud_Kirlin and Sons • personal care",
-            },
-            {
-                "time": "12:14",
-                "dot_color": "green",
-                "title": "Evaluation Completed",
-                "account": "Local POS Terminal • Columbia, SC",
-                "subtext": "Risk score 4/100 • Normal pattern",
-            },
-        ],
-        "triggers": [
-            {
-                "title": "Normal In-Store Transaction",
-                "desc": "Amount and merchant are within cardholder's usual home territory.",
-                "type": "Clear signal",
-                "tag_class": "badge-clear",
-                "link_text": "View transactions",
-            }
-        ],
-        "explore_connections": {
-            "path": "•7244 → Local Store Terminal",
-            "headline": "No Anomalous Connections",
-            "desc": "Card chip verified; regular location; no shared risky fingerprints.",
-            "link_text": "Open Connection Graph",
-        },
-        "customer": {
-            "name": "Jeff Elliott",
-            "id_badge": "ID 7244 • Mechanical Engineer • since 2017",
-            "typical_amount": "$10–$90",
-            "largest_prior": "$240.00",
-            "session_device": "Chip & PIN Terminal",
-            "device_class": "green",
-            "payment_channel": "Point of Sale (POS)",
-            "phone": "+1 (803) 555-0931",
-            "email": "j.elliott@engineers.com",
-            "city": "Columbia, SC",
-        },
-        "beneficiary": {
-            "name": "Kirlin and Sons",
-            "account_num": "POS Store 441",
-            "bank": "Bank of America",
-            "country": "United States (US)",
-            "watchlist_status": "Clean",
-            "external_dest": "Local In-Store POS",
-        },
-        "ai_insight": {
-            "badge": "Verified",
-            "title": "Legitimate Everyday Expense",
-            "desc": "Confidence 99.6% legitimate. Typical small local purchase.",
-            "button_text": "Review Sources",
-        },
-        "evidences_count": "2 evidence items saved • 2 verified • 0 to verify",
-    },
-}
+# ── Alert Queue from Real Test Split ───────────────────────────────────────────
+_alerts_db = {}
+
+
+def load_alert_queue():
+    """
+    Loads real alert queue scored from the held-out test split.
+    If cached JSON doesn't exist, automatically generates it.
+    """
+    global _alerts_db
+    if _alerts_db:
+        return _alerts_db
+
+    if ALERTS_CACHE_PATH.exists():
+        try:
+            with open(ALERTS_CACHE_PATH) as f:
+                _alerts_db = json.load(f)
+            logger.info(f"Loaded {len(_alerts_db)} real test alerts from cache.")
+            return _alerts_db
+        except Exception as e:
+            logger.warning(f"Error loading alerts cache: {e}. Generating on the fly...")
+
+    try:
+        from src.generate_alerts import generate_real_alerts
+        _alerts_db = generate_real_alerts(limit=50)
+        logger.info(f"Generated {len(_alerts_db)} test alerts dynamically.")
+        return _alerts_db
+    except Exception as e:
+        logger.error(f"Failed to generate real alerts: {e}")
+        return {}
+
+
+load_alert_queue()
+
+
+def get_enriched_alert(alert_id, fallback_to_first=False):
+    """
+    Retrieves an alert and merges its persistent status from SQLite.
+    Returns None if alert_id is not in alerts queue and fallback_to_first is False.
+    """
+    alerts = load_alert_queue()
+    if alert_id not in alerts:
+        if fallback_to_first and alerts:
+            alert_id = next(iter(alerts.keys()))
+        else:
+            return None
+
+    alert = json.loads(json.dumps(alerts[alert_id]))  # deep copy
+    latest_dec = get_latest_decision_for_alert(alert_id)
+
+    if latest_dec:
+        dec = latest_dec["decision"]
+        if dec == "Approved":
+            alert["status"] = "Approved"
+            alert["status_color"] = "green"
+            alert["sla_left"] = "Resolved"
+        elif dec == "Rejected":
+            alert["status"] = "Blocked / Frozen"
+            alert["status_color"] = "red"
+            alert["sla_left"] = "Resolved"
+        elif dec == "Escalated":
+            alert["status"] = "Escalated (Tier 3)"
+            alert["status_color"] = "amber"
+            alert["sla_left"] = "Pending Review"
+
+        created_dt = latest_dec.get("created_at", "")[:16].replace("T", " ")
+        alert["timeline"].append({
+            "time": created_dt,
+            "dot_color": "green" if dec == "Approved" else ("red" if dec == "Rejected" else "amber"),
+            "title": f"Decision: {dec}",
+            "title_color": "green" if dec == "Approved" else ("red" if dec == "Rejected" else "amber"),
+            "account": f"Analyst: {latest_dec.get('analyst', 'Anna Reyes')}",
+            "subtext": latest_dec.get("notes") or f"Transaction manually marked as {dec.lower()}.",
+        })
+
+    return alert
+
 
 # ── Sample Transactions Cache from CSV ─────────────────────────────────────────
 _transactions_cache = None
@@ -470,14 +280,18 @@ def get_sample_transactions():
             amt = float(r["amt"])
             is_fraud = int(r["is_fraud"])
             cc_last4 = str(r["cc_num"])[-4:] if pd.notna(r["cc_num"]) else "0000"
+            first_name = str(r.get("first", "")).strip()
+            last_name = str(r.get("last", "")).strip()
+            full_name = f"{first_name} {last_name}".strip() or "Cardholder"
+
             sample_rows.append({
                 "trans_num": str(r.get("trans_num", f"TX-{idx}")),
-                "customer": f"{r.get('first', '')} {r.get('last', '')}".strip() or "Cardholder",
+                "customer": full_name,
                 "card_masked": f"•••• {cc_last4}",
                 "amount": f"${amt:,.2f}",
                 "amt_raw": amt,
                 "category": str(r.get("category", "")).replace("_", " ").title(),
-                "merchant": str(r.get("merchant", "")).replace("fraud_", ""),
+                "merchant": str(r.get("merchant", "")).replace("fraud_", "").replace("_", " ").title(),
                 "city_state": f"{r.get('city', '')}, {r.get('state', '')}",
                 "datetime": str(r.get("trans_date_trans_time", "")),
                 "is_fraud": is_fraud,
@@ -490,18 +304,82 @@ def get_sample_transactions():
         return []
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Health Check Endpoint ──────────────────────────────────────────────────────
+@app.route("/health")
+def health_check():
+    """Application health and status check endpoint."""
+    alerts = load_alert_queue()
+    models_active = []
+    if xgb_model is not None:
+        models_active.append("xgboost")
+    if rf_model is not None:
+        models_active.append("random_forest")
+    if ensemble_model is not None:
+        models_active.append("ensemble")
+    if lr_model is not None:
+        models_active.append("logistic_regression")
 
+    db_ok = False
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("SELECT 1")
+            db_ok = True
+    except Exception:
+        db_ok = False
+
+    return jsonify({
+        "status": "healthy" if db_ok and bool(models_active) else "degraded",
+        "models_loaded": bool(models_active),
+        "active_models": models_active,
+        "model_version": get_model_version(),
+        "database": "connected (sqlite)" if db_ok else "error",
+        "total_alerts_queued": len(alerts),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "project": "Sentra Fraud & AML Intelligence Platform",
+    })
+
+
+# ── Static Documents & Plots Endpoint ──────────────────────────────────────────
+@app.route("/docs/<path:filename>")
+def serve_docs_file(filename):
+    """Serves generated plots and documentation from docs/ directory."""
+    return send_from_directory(DOCS_DIR, filename)
+
+
+# ── UI Index ──────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
+# ── Alerts Endpoints ───────────────────────────────────────────────────────────
 @app.route("/api/alerts")
 def api_alerts():
-    """List of all investigation alerts for the workspace."""
+    """List of all real scored investigation alerts for the workspace."""
+    alerts = load_alert_queue()
     alerts_list = []
-    for k, v in INVESTIGATION_ALERTS.items():
+
+    for alert_id, v in alerts.items():
+        latest_dec = get_latest_decision_for_alert(alert_id)
+        status = v["status"]
+        status_color = v["status_color"]
+        sla_left = v["sla_left"]
+
+        if latest_dec:
+            dec = latest_dec["decision"]
+            if dec == "Approved":
+                status = "Approved"
+                status_color = "green"
+                sla_left = "Resolved"
+            elif dec == "Rejected":
+                status = "Blocked / Frozen"
+                status_color = "red"
+                sla_left = "Resolved"
+            elif dec == "Escalated":
+                status = "Escalated (Tier 3)"
+                status_color = "amber"
+                sla_left = "Pending Review"
+
         alerts_list.append({
             "id": v["id"],
             "customer_name": v["customer"]["name"],
@@ -510,95 +388,201 @@ def api_alerts():
             "risk_level": v["risk_level"],
             "detected_time": v["detected_time"],
             "detected_reason": v["detected_reason"],
-            "sla_left": v["sla_left"],
-            "status": v["status"],
-            "status_color": v["status_color"],
+            "sla_left": sla_left,
+            "status": status,
+            "status_color": status_color,
         })
-    return jsonify({"alerts": alerts_list, "total_alerts": 47, "cases_count": 18})
+
+    # Sort strictly by risk score descending
+    alerts_list.sort(key=lambda x: x["risk_score"], reverse=True)
+
+    return jsonify({
+        "alerts": alerts_list,
+        "total_alerts": len(alerts_list),
+        "high_risk_count": sum(1 for a in alerts_list if a["risk_score"] >= 70),
+    })
 
 
 @app.route("/api/alerts/<alert_id>")
 def api_get_alert(alert_id):
-    """Get full investigation details for a specific alert."""
-    alert = INVESTIGATION_ALERTS.get(alert_id, INVESTIGATION_ALERTS["ALT-10482"])
+    """Get full real-data investigation details for a specific alert."""
+    alert = get_enriched_alert(alert_id)
+    if not alert:
+        return jsonify({"error": f"Alert '{alert_id}' not found"}), 404
     return jsonify(alert)
 
 
 @app.route("/api/alerts/<alert_id>/decision", methods=["POST"])
 def api_record_decision(alert_id):
-    """Record analyst decision: Approve, Reject, or Escalate."""
-    alert = INVESTIGATION_ALERTS.get(alert_id)
-    if not alert:
-        return jsonify({"error": "Alert not found"}), 404
+    """Record analyst decision in SQLite database: Approve, Reject, or Escalate."""
+    alerts = load_alert_queue()
+    if alert_id not in alerts:
+        logger.warning(f"Decision rejected: Alert '{alert_id}' not found.")
+        return jsonify({"error": f"Alert '{alert_id}' not found"}), 404
 
-    payload = request.get_json(force=True) or {}
-    decision = payload.get("decision", "Approved")
-    notes = payload.get("notes", "")
+    payload = request.get_json(force=True, silent=True) or {}
+    decision = str(payload.get("decision", "Approved")).strip()
+    notes = str(payload.get("notes", "")).strip()
+    analyst = str(payload.get("analyst", "Anna Reyes")).strip()
 
-    if decision == "Approved":
-        alert["status"] = "Approved"
-        alert["status_color"] = "green"
-        alert["sla_left"] = "Resolved"
-    elif decision == "Rejected":
-        alert["status"] = "Blocked / Frozen"
-        alert["status_color"] = "red"
-        alert["sla_left"] = "Resolved"
-    elif decision == "Escalated":
-        alert["status"] = "Escalated (Tier 3)"
-        alert["status_color"] = "amber"
-        alert["sla_left"] = "Pending Review"
+    valid_decisions = ["Approved", "Rejected", "Escalated"]
+    if decision not in valid_decisions:
+        logger.warning(f"Invalid decision '{decision}' attempted for alert '{alert_id}'.")
+        return jsonify({
+            "error": "Invalid decision value",
+            "allowed": valid_decisions,
+        }), 400
 
-    now_str = datetime.now().strftime("%H:%M CET")
-    alert["timeline"].append({
-        "time": now_str,
-        "dot_color": "green" if decision == "Approved" else "red",
-        "title": f"Decision: {decision}",
-        "account": f"Analyst: {alert['assigned_to']}",
-        "subtext": notes or f"Transaction manually marked as {decision.lower()}.",
-    })
+    # Save to SQLite database
+    save_analyst_decision(alert_id, decision, analyst=analyst, notes=notes)
+    logger.info(f"Recorded analyst decision for alert '{alert_id}': {decision} by {analyst}")
 
-    return jsonify({"success": True, "alert": alert})
+    # Return updated alert with refreshed database status
+    updated_alert = get_enriched_alert(alert_id)
+    return jsonify({"success": True, "alert": updated_alert})
 
 
+@app.route("/api/alerts/<alert_id>/decisions")
+def api_get_alert_decisions(alert_id):
+    """Returns decision history from SQLite for a specific alert."""
+    alerts = load_alert_queue()
+    if alert_id not in alerts:
+        return jsonify({"error": f"Alert '{alert_id}' not found"}), 404
+    decisions = get_all_decisions_for_alert(alert_id)
+    return jsonify({"alert_id": alert_id, "decisions": decisions})
+
+
+# ── Evidence Tab Endpoint (Real Docs/Results.json) ─────────────────────────────
+@app.route("/api/evidence")
+def api_evidence():
+    """Returns exact machine learning benchmarks and financial analysis from docs/results.json."""
+    results_path = DOCS_DIR / "results.json"
+    if not results_path.exists():
+        return jsonify({"error": "Evaluation results not found. Run 'python src/evaluate.py' first."}), 404
+
+    try:
+        with open(results_path) as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": f"Failed to parse results.json: {e}"}), 500
+
+
+# ── Real-Time Prediction Endpoint with Input Validation ───────────────────────
 @app.route("/api/predict", methods=["POST"])
 def api_predict():
-    """Real-time ML scoring using XGBoost + Random Forest ensemble."""
+    """
+    Real-time ML scoring with strict input validation, SHAP explainability,
+    and USD-denominated risk attributions.
+    """
+    data = request.get_json(force=True, silent=True)
+    if data is None or not isinstance(data, dict):
+        return jsonify({
+            "error": "Validation failed",
+            "details": ["Request body must be a valid JSON object."],
+        }), 400
+
+    # Strict Input Validation
+    validation_errors = []
+
+    # 1. Validate 'amt'
+    if "amt" not in data:
+        validation_errors.append("Field 'amt' (transaction amount) is required.")
+    else:
+        try:
+            amt_val = float(data["amt"])
+            if amt_val <= 0 or math.isnan(amt_val) or math.isinf(amt_val):
+                validation_errors.append("Field 'amt' must be a positive finite number (> 0).")
+        except (ValueError, TypeError):
+            validation_errors.append("Field 'amt' must be a valid numeric amount.")
+
+    # 2. Validate 'hour'
+    if "hour" in data:
+        try:
+            h = int(data["hour"])
+            if not (0 <= h <= 23):
+                validation_errors.append("Field 'hour' must be an integer between 0 and 23.")
+        except (ValueError, TypeError):
+            validation_errors.append("Field 'hour' must be an integer.")
+
+    # 3. Validate 'age'
+    if "age" in data:
+        try:
+            age = float(data["age"])
+            if not (10 <= age <= 120):
+                validation_errors.append("Field 'age' must be between 10 and 120.")
+        except (ValueError, TypeError):
+            validation_errors.append("Field 'age' must be a valid number.")
+
+    # 4. Validate 'city_pop'
+    if "city_pop" in data:
+        try:
+            pop = float(data["city_pop"])
+            if pop < 0:
+                validation_errors.append("Field 'city_pop' cannot be negative.")
+        except (ValueError, TypeError):
+            validation_errors.append("Field 'city_pop' must be a number.")
+
+    # 5. Validate coordinates
+    if "lat" in data:
+        try:
+            lat = float(data["lat"])
+            if not (-90.0 <= lat <= 90.0):
+                validation_errors.append("Field 'lat' must be between -90 and 90.")
+        except (ValueError, TypeError):
+            validation_errors.append("Field 'lat' must be a valid float.")
+
+    if "long" in data:
+        try:
+            lon = float(data["long"])
+            if not (-180.0 <= lon <= 180.0):
+                validation_errors.append("Field 'long' must be between -180 and 180.")
+        except (ValueError, TypeError):
+            validation_errors.append("Field 'long' must be a valid float.")
+
+    if validation_errors:
+        logger.warning(f"Prediction input validation failed: {validation_errors}")
+        return jsonify({
+            "error": "Validation failed",
+            "details": validation_errors,
+        }), 400
+
     try:
-        data = request.get_json(force=True) or {}
+        amt_in = float(data.get("amt", 0))
+        logger.info(f"Scoring prediction request: amt=${amt_in:,.2f}, category={data.get('category', 'unknown')}, hour={data.get('hour', 'N/A')}")
+
+        # Build feature vector
         feature_dict = build_feature_dict(
             data,
             le_category=le_category,
             category_fraud_rates=cat_fraud_rates,
         )
 
+        cols = feature_cols if feature_cols is not None else FEATURE_COLS
+        X = pd.DataFrame([feature_dict])[cols]
+
         rf_prob = 0.5
         xgb_prob = 0.5
         ensemble_prob = 0.5
 
-        cols = feature_cols if feature_cols is not None else FEATURE_COLS
-        X = pd.DataFrame([feature_dict])[cols]
-
         if ensemble_model is not None:
             ensemble_prob = float(ensemble_model.predict_proba(X)[0][1])
-            if rf_model is not None:
-                rf_prob = float(rf_model.predict_proba(X)[0][1])
             if xgb_model is not None:
                 xgb_prob = float(xgb_model.predict_proba(X)[0][1])
-        elif rf_model is not None and xgb_model is not None:
-            rf_prob = float(rf_model.predict_proba(X)[0][1])
+            if rf_model is not None:
+                rf_prob = float(rf_model.predict_proba(X)[0][1])
+        elif xgb_model is not None and rf_model is not None:
             xgb_prob = float(xgb_model.predict_proba(X)[0][1])
-            ensemble_prob = (rf_prob + xgb_prob) / 2.0
-        elif rf_model is not None:
             rf_prob = float(rf_model.predict_proba(X)[0][1])
-            ensemble_prob = rf_prob
+            ensemble_prob = (xgb_prob + rf_prob) / 2.0
         elif xgb_model is not None:
             xgb_prob = float(xgb_model.predict_proba(X)[0][1])
             ensemble_prob = xgb_prob
         else:
             amt = float(data.get("amt", 100))
             ensemble_prob = 0.94 if amt > 5000 else (0.75 if amt > 1000 else 0.05)
-            rf_prob = ensemble_prob
             xgb_prob = ensemble_prob
+            rf_prob = ensemble_prob
 
         risk_score = int(round(ensemble_prob * 100))
         if risk_score >= 70:
@@ -609,42 +593,78 @@ def api_predict():
             risk_level = "Low risk"
 
         is_fraud = 1 if risk_score >= 50 else 0
-        triggers = identify_risk_triggers(feature_dict, ensemble_prob)
 
+        # Run real SHAP explanation
+        active_model = xgb_model or ensemble_model
+        shap_explanation = explain_transaction(
+            feature_dict,
+            model=active_model,
+            explainer=tree_explainer,
+            top_k=5,
+        )
+
+        # Build Triggers from top contributing features
+        triggers = []
+        for feat in shap_explanation["top_features"]:
+            impact = feat["impact"]
+            if impact == "increases_risk":
+                t_type = "Triggered rule" if feat["abs_impact"] > 1.5 else "Risk signal"
+                tag_class = "badge-triggered" if feat["abs_impact"] > 1.5 else "badge-signal"
+            else:
+                t_type = "Mitigating factor"
+                tag_class = "badge-clear"
+
+            feat_title = feat["feature"].replace("_", " ").title()
+            triggers.append({
+                "title": feat_title,
+                "desc": feat["reason"],
+                "type": t_type,
+                "tag_class": tag_class,
+                "link_text": "View details",
+            })
+
+        # Synthesize AI Insight text from explain_transaction output
+        top_reasons = "; ".join([f["reason"] for f in shap_explanation["top_features"][:2]])
         if is_fraud:
-            ai_title = "High Risk Anomaly Detected"
+            ai_title = "Anomalous Fraud Pattern Detected"
             ai_desc = (
-                f"Model ensemble identifies anomalous transaction pattern with {risk_score}% "
-                f"fraud confidence (XGBoost: {round(xgb_prob*100, 1)}%, RF: {round(rf_prob*100, 1)}%). "
-                "Recommended action: review customer device logs and verify identity."
+                f"Model identifies {risk_level.lower()} with {risk_score}/100 fraud score "
+                f"({round(ensemble_prob * 100, 1)}% confidence). Primary drivers: {top_reasons}."
             )
+            ai_badge = "Unverified"
         else:
-            ai_title = "Normal Transaction Velocity"
+            ai_title = "Legitimate Transaction Pattern"
             ai_desc = (
-                f"Transaction is within expected behavioral parameters for this profile. "
-                f"Risk score is {risk_score}/100. Confidence of legitimate transfer is {100-risk_score}%."
+                f"Transaction aligns with normal spending behavior ({risk_score}/100 score). "
+                f"Primary drivers: {top_reasons}."
             )
+            ai_badge = "Verified"
 
         now_time = datetime.now().strftime("%H:%M")
+        customer_name = data.get("customer_name", "Cardholder")
         timeline = [
             {
                 "time": now_time,
                 "dot_color": "green",
-                "title": f"€{feature_dict['amt']:,.2f} transfer initiated",
-                "account": f"{data.get('customer_name', 'Cardholder')} • Account •{str(data.get('account', '4821'))[-4:]}",
-                "subtext": f"Payment channel: {data.get('channel', 'Mobile banking')}",
+                "title": f"${feature_dict['amt']:,.2f} transfer initiated",
+                "account": f"{customer_name} • Account •{str(data.get('account', '4821'))[-4:]}",
+                "subtext": f"Payment channel: {data.get('channel', 'Web Checkout')}",
             },
             {
                 "time": now_time,
                 "dot_color": "red" if is_fraud else "green",
-                "title": "Alert triggered" if is_fraud else "Transfer cleared",
+                "title": "Alert triggered" if is_fraud else "Transaction cleared",
                 "title_color": "red" if is_fraud else "green",
                 "account": f"Risk Score: {risk_score}/100 ({risk_level})",
-                "subtext": "Automated ML scoring completed",
+                "subtext": f"Scored by Model Ensemble • Confidence: {round(ensemble_prob * 100, 1)}%",
             },
         ]
 
+        model_ver = get_model_version()
+        logger.info(f"Prediction complete: risk_score={risk_score}/100, level={risk_level}, model_version={model_ver}")
+
         return jsonify({
+            "model_version": model_ver,
             "is_fraud": is_fraud,
             "risk_score": risk_score,
             "risk_level": risk_level,
@@ -652,16 +672,19 @@ def api_predict():
             "xgb_score": round(xgb_prob * 100, 2),
             "confidence": round(ensemble_prob * 100, 2),
             "triggers": triggers,
+            "top_features": shap_explanation["top_features"],
             "ai_insight": {
-                "badge": "Unverified" if is_fraud else "Verified",
+                "badge": ai_badge,
                 "title": ai_title,
                 "desc": ai_desc,
                 "button_text": "Review Sources",
             },
             "timeline": timeline,
+            "feature_dict": feature_dict,
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.exception(f"Prediction internal error: {e}")
+        return jsonify({"error": f"Prediction error: {str(e)}"}), 500
 
 
 @app.route("/api/transactions")
@@ -673,13 +696,17 @@ def api_transactions():
 
 @app.route("/api/model-metrics")
 def api_model_metrics():
-    """Returns trained model benchmarks."""
+    """Returns trained model benchmarks directly from docs/results.json or metrics.joblib."""
+    results_path = DOCS_DIR / "results.json"
+    if results_path.exists():
+        try:
+            with open(results_path) as f:
+                return jsonify(json.load(f))
+        except Exception:
+            pass
     if model_metrics is not None:
         return jsonify(model_metrics)
-    return jsonify({
-        "rf": {"accuracy": 0.9956, "precision": 0.4714, "recall": 0.8250, "f1": 0.6000, "auc": 0.9911},
-        "xgb": {"accuracy": 0.9989, "precision": 0.8831, "recall": 0.8500, "f1": 0.8662, "auc": 0.9986},
-    })
+    return jsonify({"error": "Model metrics not available."})
 
 
 if __name__ == "__main__":

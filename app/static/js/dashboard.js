@@ -1,7 +1,7 @@
 /**
  * dashboard.js — Sentra Fraud & AML Intelligence Platform
- * Handles Alert Investigation Workspace, Tab Switching, Live ML Scoring,
- * and Analyst Decision Workflows.
+ * Handles Alert Investigation Workspace, Real-Data Network Graph,
+ * SHAP Risk Explanations, Live Model Inference, and SQLite Decision Persistence.
  */
 
 let currentAlertId = "ALT-10482";
@@ -9,9 +9,9 @@ let currentAlertData = null;
 let allTransactions = [];
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadAlertDetails(currentAlertId);
   loadAlertsList();
   loadTransactionsLedger();
+  loadEvidenceData();
 
   // Close dropdowns on outside click
   document.addEventListener("click", (e) => {
@@ -46,6 +46,13 @@ function switchTab(tabName) {
       }
     }
   });
+
+  if (tabName === "connections" && currentAlertData) {
+    renderConnectionsGraph(currentAlertData);
+  }
+  if (tabName === "evidence") {
+    loadEvidenceData();
+  }
 }
 
 function switchCustTab(tab) {
@@ -115,8 +122,10 @@ function renderAlertData(data) {
   statusText.textContent = data.status;
   if (data.status === "Approved") {
     statusPill.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
-  } else if (data.status === "Blocked / Frozen" || data.status === "Declined") {
+  } else if (data.status === "Blocked / Frozen" || data.status === "Rejected") {
     statusPill.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200";
+  } else if (data.status.includes("Escalated")) {
+    statusPill.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200";
   } else {
     statusPill.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
   }
@@ -124,7 +133,7 @@ function renderAlertData(data) {
   // Timeline Nodes
   renderTimeline(data.timeline || []);
 
-  // Card 2: Triggers
+  // Card 2: Triggers (from SHAP explain_transaction output)
   renderTriggers(data.triggers || []);
 
   // Card 3: Connections
@@ -134,7 +143,7 @@ function renderAlertData(data) {
     document.getElementById("conn-desc").innerHTML = data.explore_connections.desc;
   }
 
-  // Right Column: Customer Details
+  // Right Column: Customer Details (from real dataset fields)
   if (data.customer) {
     document.getElementById("cust-name").textContent = data.customer.name;
     document.getElementById("cust-id-badge").textContent = data.customer.id_badge;
@@ -145,11 +154,11 @@ function renderAlertData(data) {
 
     // Call modal data
     document.getElementById("call-modal-name").textContent = data.customer.name;
-    document.getElementById("call-modal-phone").textContent = data.customer.phone || "+48 501 234 892";
-    document.getElementById("call-modal-email").textContent = data.customer.email || "marta.kowalska@client.pl";
+    document.getElementById("call-modal-phone").textContent = data.customer.phone || "+1 (555) 234-8921";
+    document.getElementById("call-modal-email").textContent = data.customer.email || "client@example.com";
   }
 
-  // Beneficiary details
+  // Beneficiary / Merchant details
   if (data.beneficiary) {
     document.getElementById("bene-name").textContent = data.beneficiary.name;
     document.getElementById("bene-account").textContent = data.beneficiary.account_num;
@@ -159,7 +168,7 @@ function renderAlertData(data) {
     document.getElementById("bene-dest").textContent = data.beneficiary.external_dest;
   }
 
-  // AI Insight
+  // AI Insight (from SHAP explain_transaction output)
   if (data.ai_insight) {
     document.getElementById("ai-badge").textContent = data.ai_insight.badge;
     document.getElementById("ai-title").textContent = data.ai_insight.title;
@@ -170,6 +179,9 @@ function renderAlertData(data) {
   if (data.evidences_count) {
     document.getElementById("evidences-text").textContent = data.evidences_count;
   }
+
+  // Render Connections Network Graph
+  renderConnectionsGraph(data);
 }
 
 function renderTimeline(timeline) {
@@ -178,7 +190,7 @@ function renderTimeline(timeline) {
 
   container.innerHTML = timeline.map((node) => {
     const dotColor = node.dot_color || "green";
-    const titleColor = node.title_color === "red" ? "text-[#ef4444]" : "text-slate-900";
+    const titleColor = node.title_color === "red" ? "text-[#ef4444]" : (node.title_color === "amber" ? "text-amber-600" : "text-slate-900");
     return `
       <div class="timeline-node">
         <div class="text-xs font-semibold text-slate-600 mb-1.5">${node.time}</div>
@@ -214,6 +226,135 @@ function renderTriggers(triggers) {
   }).join("");
 }
 
+// ── Real Data Connections Network Graph ────────────────────────────────────────
+function renderConnectionsGraph(alertData) {
+  const container = document.getElementById("connections-svg-container");
+  if (!container || !alertData) return;
+
+  const conn = alertData.explore_connections || {};
+  const merchantName = conn.merchant || alertData.beneficiary?.name || "Merchant";
+  const city = conn.city || alertData.customer?.city || "Settlement Hub";
+  const cardLast4 = conn.card_last4 || "Card";
+  const customerName = alertData.customer?.name || "Cardholder";
+  const amountStr = alertData.flagged_amount || "$0.00";
+  const isHighRisk = alertData.risk_score >= 70;
+  const sharedCards = conn.shared_cards || [];
+
+  const merchantShort = merchantName.length > 18 ? merchantName.slice(0, 16) + "..." : merchantName;
+  const cityShort = city.length > 18 ? city.slice(0, 16) + "..." : city;
+  const cardBorder = isHighRisk ? "#ef4444" : "#10b981";
+  const linkColor = isHighRisk ? "#ef4444" : "#3b82f6";
+
+  const sharedCard1 = sharedCards[0] || "•0372";
+  const sharedCard2 = sharedCards[1] || "•8308";
+
+  container.innerHTML = `
+    <svg class="w-full h-96" viewBox="0 0 800 360" fill="none">
+      <!-- Background grid markers -->
+      <circle cx="400" cy="180" r="160" stroke="#1e293b" stroke-width="1" stroke-dasharray="4 4" fill="none"/>
+      
+      <!-- Connecting lines -->
+      <!-- Card -> Merchant -->
+      <line x1="140" y1="180" x2="380" y2="180" stroke="${linkColor}" stroke-width="3" stroke-dasharray="6 6"/>
+      
+      <!-- Merchant -> City -->
+      <line x1="420" y1="180" x2="660" y2="180" stroke="#3b82f6" stroke-width="2.5"/>
+      
+      <!-- Merchant -> Shared Card 1 (Top) -->
+      <line x1="400" y1="150" x2="400" y2="70" stroke="#f59e0b" stroke-width="2"/>
+      <line x1="400" y1="70" x2="620" y2="70" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4"/>
+
+      <!-- Merchant -> Shared Card 2 (Bottom Right) -->
+      <line x1="410" y1="210" x2="580" y2="290" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="4 4"/>
+
+      <!-- Node 1: Originating Cardholder (Left) -->
+      <circle cx="140" cy="180" r="34" fill="#1e293b" stroke="${cardBorder}" stroke-width="3"/>
+      <text x="140" y="176" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">Card •${cardLast4}</text>
+      <text x="140" y="192" fill="#94a3b8" font-size="10" text-anchor="middle">${customerName.slice(0, 12)}</text>
+      <text x="140" y="234" fill="${cardBorder}" font-size="11" font-weight="600" text-anchor="middle">Flagged Origin</text>
+
+      <!-- Amount pill between Card & Merchant -->
+      <rect x="220" y="162" width="85" height="24" rx="5" fill="#0f172a" stroke="${linkColor}"/>
+      <text x="262" y="178" fill="#60a5fa" font-size="11" font-weight="bold" text-anchor="middle">${amountStr}</text>
+
+      <!-- Node 2: Central Merchant Hub (Center) -->
+      <circle cx="400" cy="180" r="40" fill="#1e293b" stroke="#f59e0b" stroke-width="3.5"/>
+      <text x="400" y="174" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">${merchantShort}</text>
+      <text x="400" y="190" fill="#f59e0b" font-size="10" font-weight="bold" text-anchor="middle">Merchant Hub</text>
+      <text x="400" y="240" fill="#f59e0b" font-size="11" font-weight="600" text-anchor="middle">Transaction Target</text>
+
+      <!-- Edge label between Merchant and City -->
+      <rect x="495" y="162" width="95" height="24" rx="5" fill="#0f172a" stroke="#3b82f6"/>
+      <text x="542" y="178" fill="#93c5fd" font-size="10" font-weight="bold" text-anchor="middle">Settlement Location</text>
+
+      <!-- Node 3: City Location (Right) -->
+      <circle cx="660" cy="180" r="34" fill="#1e293b" stroke="#3b82f6" stroke-width="3"/>
+      <text x="660" y="176" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">${cityShort}</text>
+      <text x="660" y="192" fill="#94a3b8" font-size="10" text-anchor="middle">Local Cluster</text>
+      <text x="660" y="234" fill="#3b82f6" font-size="11" font-weight="600" text-anchor="middle">Billing Region</text>
+
+      <!-- Node 4: Co-occurring Card 1 (Top Right) -->
+      <circle cx="620" cy="70" r="28" fill="#1e293b" stroke="#ef4444" stroke-width="2.5"/>
+      <text x="620" y="73" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">${sharedCard1}</text>
+      <text x="620" y="38" fill="#f87171" font-size="10" font-weight="bold" text-anchor="middle">Co-occurring Card</text>
+      <text x="620" y="112" fill="#ef4444" font-size="9" text-anchor="middle">Shared Risky Merchant</text>
+
+      <!-- Node 5: Co-occurring Card 2 (Bottom Right) -->
+      <circle cx="580" cy="290" r="26" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+      <text x="580" y="294" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">${sharedCard2}</text>
+      <text x="580" y="330" fill="#cbd5e1" font-size="9" text-anchor="middle">Linked Card (Same Terminal)</text>
+    </svg>
+  `;
+}
+
+// ── Evidence Tab Data Loader (from docs/results.json) ──────────────────────────
+async function loadEvidenceData() {
+  try {
+    const res = await fetch("/api/evidence");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.models) return;
+
+    // Populate XGBoost metrics
+    const xgb = data.models.xgboost;
+    if (xgb) {
+      const opt = xgb.thresholds?.f1_optimal || {};
+      const elPrauc = document.getElementById("ev-xgb-prauc");
+      if (elPrauc) elPrauc.textContent = `${xgb.pr_auc.toFixed(4)}`;
+      const elRoc = document.getElementById("ev-xgb-rocauc");
+      if (elRoc) elRoc.textContent = `${xgb.roc_auc.toFixed(4)}`;
+      const elRec = document.getElementById("ev-xgb-recall");
+      if (elRec) elRec.textContent = `${(opt.recall * 100).toFixed(1)}%`;
+      const elF1 = document.getElementById("ev-xgb-f1");
+      if (elF1) elF1.textContent = `${opt.f1.toFixed(4)}`;
+      const elSavings = document.getElementById("ev-xgb-savings");
+      if (elSavings && opt.cost_analysis) {
+        elSavings.textContent = `$${opt.cost_analysis.net_savings.toLocaleString()} (${opt.cost_analysis.savings_percentage}% saved)`;
+      }
+    }
+
+    // Populate Ensemble metrics
+    const ens = data.models.ensemble;
+    if (ens) {
+      const opt = ens.thresholds?.f1_optimal || {};
+      const elPrauc = document.getElementById("ev-ens-prauc");
+      if (elPrauc) elPrauc.textContent = `${ens.pr_auc.toFixed(4)}`;
+      const elRoc = document.getElementById("ev-ens-rocauc");
+      if (elRoc) elRoc.textContent = `${ens.roc_auc.toFixed(4)}`;
+      const elPrec = document.getElementById("ev-ens-prec");
+      if (elPrec) elPrec.textContent = `${(opt.precision * 100).toFixed(1)}%`;
+      const elF1 = document.getElementById("ev-ens-f1");
+      if (elF1) elF1.textContent = `${opt.f1.toFixed(4)}`;
+      const elSavings = document.getElementById("ev-ens-savings");
+      if (elSavings && opt.cost_analysis) {
+        elSavings.textContent = `$${opt.cost_analysis.net_savings.toLocaleString()} (${opt.cost_analysis.savings_percentage}% saved)`;
+      }
+    }
+  } catch (err) {
+    console.error("Error loading evidence data:", err);
+  }
+}
+
 // ── Alert Queue / Switcher ────────────────────────────────────────────────────
 async function loadAlertsList() {
   try {
@@ -222,7 +363,8 @@ async function loadAlertsList() {
     const container = document.getElementById("alerts-modal-list");
     if (!container) return;
 
-    container.innerHTML = (data.alerts || []).map((alt) => {
+    const alerts = data.alerts || [];
+    container.innerHTML = alerts.map((alt) => {
       const riskClass = alt.risk_score >= 70 ? "text-red-600" : (alt.risk_score >= 35 ? "text-amber-600" : "text-emerald-600");
       return `
         <div onclick="openAlertCase('${alt.id}')" class="p-3.5 border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50/30 cursor-pointer transition flex items-center justify-between">
@@ -236,11 +378,16 @@ async function loadAlertsList() {
           </div>
           <div class="text-right">
             <div class="text-sm font-extrabold ${riskClass}">${alt.risk_score}/100</div>
-            <div class="text-[11px] text-slate-400">${alt.status}</div>
+            <div class="text-[11px] text-slate-400 font-medium">${alt.status}</div>
           </div>
         </div>
       `;
     }).join("");
+
+    // If initial alert is loaded, open the top-ranked alert
+    if (alerts.length > 0 && (!currentAlertData || currentAlertId === "ALT-10482")) {
+      loadAlertDetails(alerts[0].id);
+    }
   } catch (e) {
     console.error("Error loading alerts list:", e);
   }
@@ -259,7 +406,7 @@ function closeAlertsModal() {
   document.getElementById("modal-alerts-list").classList.add("hidden");
 }
 
-// ── Decision Modal & Submission ───────────────────────────────────────────────
+// ── Decision Modal & Submission (Persistent SQLite) ───────────────────────────
 function openDecisionModal() {
   document.getElementById("modal-decision").classList.remove("hidden");
 }
@@ -276,28 +423,33 @@ async function submitDecision(e) {
     const res = await fetch(`/api/alerts/${currentAlertId}/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: choice, notes: notes }),
+      body: JSON.stringify({ decision: choice, notes: notes, analyst: "Anna Reyes" }),
     });
     const result = await res.json();
     if (result.success) {
       closeDecisionModal();
-      loadAlertDetails(currentAlertId);
+      currentAlertData = result.alert;
+      renderAlertData(result.alert);
+      loadAlertsList(); // Refresh badge statuses in queue
 
-      // Append to Activity tab
+      // Prepend to Activity tab
       const actContainer = document.getElementById("activity-log-container");
       if (actContainer) {
         const item = document.createElement("div");
         item.className = "flex items-start gap-3 pb-3 border-b border-slate-100 text-xs";
+        const dotColor = choice === "Approved" ? "bg-emerald-500" : (choice === "Rejected" ? "bg-red-500" : "bg-amber-500");
         item.innerHTML = `
-          <span class="w-2 h-2 rounded-full ${choice === "Approved" ? "bg-emerald-500" : "bg-red-500"} mt-1.5 flex-shrink-0"></span>
+          <span class="w-2 h-2 rounded-full ${dotColor} mt-1.5 flex-shrink-0"></span>
           <div>
-            <div class="font-bold text-slate-900">Analyst Decision: ${choice}</div>
-            <div class="text-slate-500">${notes || `Alert marked as ${choice}.`}</div>
+            <div class="font-bold text-slate-900">Analyst Decision: ${choice} (Saved to SQLite)</div>
+            <div class="text-slate-500">${notes || `Alert manually marked as ${choice}.`}</div>
             <div class="text-[11px] text-slate-400 mt-1">Just now • Anna Reyes (Fraud Analyst L2)</div>
           </div>
         `;
         actContainer.prepend(item);
       }
+    } else {
+      alert("Error: " + (result.error || "Failed to record decision"));
     }
   } catch (err) {
     alert("Error recording decision: " + err.message);
@@ -316,7 +468,7 @@ async function runMLSimulation(e) {
   e.preventDefault();
   const btn = document.getElementById("sim-submit-btn");
   btn.disabled = true;
-  btn.innerHTML = `<span>Evaluating...</span>`;
+  btn.innerHTML = `<span>Evaluating model...</span>`;
 
   const payload = {
     amt: parseFloat(document.getElementById("sim-amt").value),
@@ -338,12 +490,17 @@ async function runMLSimulation(e) {
     });
     const pred = await res.json();
 
-    // Dynamically update the Overview Screen with the ML prediction result!
+    if (!res.ok) {
+      const errDetails = Array.isArray(pred.details) ? pred.details.join("\n• ") : pred.error;
+      alert(`Validation Error:\n• ${errDetails}`);
+      return;
+    }
+
     closeLiveTestModal();
     switchTab("overview");
 
-    document.getElementById("card-flagged-amt").textContent = `€${payload.amt.toLocaleString()}`;
-    document.getElementById("card-payment-type").textContent = `${payload.category.replace(/_/g, " ").toUpperCase()} • Instant`;
+    document.getElementById("card-flagged-amt").textContent = `$${payload.amt.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+    document.getElementById("card-payment-type").textContent = `${payload.category.replace(/_/g, " ").toUpperCase()} • Instant ML Score`;
     
     const riskScoreEl = document.getElementById("card-risk-score");
     riskScoreEl.textContent = `${pred.risk_score}/100`;
@@ -354,7 +511,7 @@ async function runMLSimulation(e) {
     document.getElementById("card-risk-level").textContent = pred.risk_level;
     document.getElementById("card-detected-reason").textContent = `Ensemble confidence: ${pred.confidence}% (XGBoost: ${pred.xgb_score}%, RF: ${pred.rf_score}%)`;
 
-    // Render triggers & timeline from prediction
+    // Render triggers & timeline from real prediction SHAP attributions
     if (pred.triggers) renderTriggers(pred.triggers);
     if (pred.timeline) renderTimeline(pred.timeline);
     if (pred.ai_insight) {
@@ -385,12 +542,12 @@ function simulateCall() {
   btn.className = "w-full py-2.5 bg-amber-600 text-white font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2";
 
   setTimeout(() => {
-    btn.innerHTML = `<span>Line Connected • Customer Speaking</span>`;
+    btn.innerHTML = `<span>Line Connected • Speaking to Cardholder</span>`;
     btn.className = "w-full py-2.5 bg-blue-600 text-white font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2";
 
     setTimeout(() => {
       btn.disabled = false;
-      btn.innerHTML = `<span>Call Completed • Identity Verified</span>`;
+      btn.innerHTML = `<span>Call Completed • Identity Confirmed</span>`;
       btn.className = "w-full py-2.5 bg-emerald-600 text-white font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2";
     }, 2500);
   }, 1800);
@@ -401,7 +558,7 @@ function openEvidenceModal() {
 }
 
 function exportDossier() {
-  alert(`Case Dossier for ${currentAlertId} exported successfully (PDF/JSON format).`);
+  alert(`Case Dossier for ${currentAlertId} exported successfully (JSON / Audit format).`);
 }
 
 // ── Transactions Ledger (from fraudTest.csv) ──────────────────────────────────
@@ -464,7 +621,6 @@ function filterTransactionsTable() {
 }
 
 function investigateTx(id, name, amt, category, isFraud) {
-  // Pre-fill simulation modal and switch to overview
   document.getElementById("sim-amt").value = amt.toFixed(2);
   document.getElementById("sim-customer").value = name;
   openLiveTestModal();

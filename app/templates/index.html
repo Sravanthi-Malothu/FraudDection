@@ -263,8 +263,8 @@
                 <!-- Flagged Transfer -->
                 <div>
                   <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Flagged Transfer</div>
-                  <div class="text-3xl font-bold text-slate-900" id="card-flagged-amt">€9,800</div>
-                  <div class="text-xs text-slate-500 mt-1" id="card-payment-type">SEPA Instant • Account 4821</div>
+                  <div class="text-3xl font-bold text-slate-900" id="card-flagged-amt">$949.49</div>
+                  <div class="text-xs text-slate-500 mt-1" id="card-payment-type">Credit Card (•••• 7538) • Grocery POS</div>
                 </div>
 
                 <!-- Risk Score -->
@@ -277,15 +277,15 @@
                 <!-- Detected -->
                 <div>
                   <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Detected</div>
-                  <div class="text-3xl font-bold text-slate-900" id="card-detected-time">12:48 CET</div>
-                  <div class="text-xs text-slate-500 mt-1" id="card-detected-reason">Rapid onward transfers</div>
+                  <div class="text-3xl font-bold text-slate-900" id="card-detected-time">23:06 EST</div>
+                  <div class="text-xs text-slate-500 mt-1" id="card-detected-reason">Severe amount outlier vs card baseline</div>
                 </div>
 
                 <!-- SLA Left -->
                 <div>
                   <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">SLA Left</div>
-                  <div class="text-3xl font-bold text-[#d97706]" id="card-sla-left">12 min</div>
-                  <div class="text-xs text-slate-500 mt-1" id="card-sla-due">Due 14:12 CET</div>
+                  <div class="text-3xl font-bold text-[#d97706]" id="card-sla-left">14 min</div>
+                  <div class="text-xs text-slate-500 mt-1" id="card-sla-due">Due 16:00 EST</div>
                 </div>
 
                 <!-- Top Right Status Pill -->
@@ -306,29 +306,29 @@
                   
                   <!-- Node 1 -->
                   <div class="timeline-node">
-                    <div class="text-xs font-semibold text-slate-600 mb-1.5" id="tl-node1-time">12:40</div>
+                    <div class="text-xs font-semibold text-slate-600 mb-1.5" id="tl-node1-time">Earlier</div>
                     <div class="timeline-circle green" id="tl-node1-dot"></div>
-                    <div class="text-xs font-bold text-slate-900" id="tl-node1-title">€9,800 transfer completed</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5" id="tl-node1-account">Marta Kowalska • Account •4821</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5" id="tl-node1-subtext">•4821 → •9134 • TX-7814</div>
+                    <div class="text-xs font-bold text-slate-900" id="tl-node1-title">$43.39 baseline purchase</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5" id="tl-node1-account">Cardholder • Card •7538</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5" id="tl-node1-subtext">Routine transaction • Senatobia, MS</div>
                   </div>
 
                   <!-- Node 2 -->
                   <div class="timeline-node">
-                    <div class="text-xs font-semibold text-slate-600 mb-1.5" id="tl-node2-time">12:48</div>
+                    <div class="text-xs font-semibold text-slate-600 mb-1.5" id="tl-node2-time">23:06 EST</div>
                     <div class="timeline-circle amber" id="tl-node2-dot"></div>
-                    <div class="text-xs font-bold text-slate-900" id="tl-node2-title">€9,600 sent onward</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5" id="tl-node2-account">David Oister • Account •9134</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5" id="tl-node2-subtext">•9134 → •7712 • TX-7819</div>
+                    <div class="text-xs font-bold text-slate-900" id="tl-node2-title">$949.49 grocery purchase</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5" id="tl-node2-account">Bauch-Raynor • Card •7538</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5" id="tl-node2-subtext">Senatobia, MS • Dec 22, 2020</div>
                   </div>
 
                   <!-- Node 3 -->
                   <div class="timeline-node">
-                    <div class="text-xs font-semibold text-slate-600 mb-1.5" id="tl-node3-time">12:48</div>
+                    <div class="text-xs font-semibold text-slate-600 mb-1.5" id="tl-node3-time">23:06 EST</div>
                     <div class="timeline-circle red" id="tl-node3-dot"></div>
                     <div class="text-xs font-bold text-[#ef4444]" id="tl-node3-title">Alert triggered</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5" id="tl-node3-account">External account •7712</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5" id="tl-node3-subtext">Rapid onward transfers</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5" id="tl-node3-account">Risk Score: 94/100 (High risk)</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5" id="tl-node3-subtext">XGBoost PR-AUC: 0.8833</div>
                   </div>
 
                 </div>
@@ -345,8 +345,8 @@
                 <!-- Trigger 1 -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3.5 border-b border-slate-100">
                   <div>
-                    <div class="text-sm font-bold text-slate-900">Rapid onward transfer</div>
-                    <div class="text-xs text-slate-500 mt-0.5">€9,600 sent from •9134 eight minutes after a €9,800 credit.</div>
+                    <div class="text-sm font-bold text-slate-900">High Monetary Amount</div>
+                    <div class="text-xs text-slate-500 mt-0.5">High financial transfer value of $949.49 exceeds standard card baseline.</div>
                   </div>
                   <div class="flex items-center gap-3">
                     <span class="badge-triggered">Triggered rule</span>
@@ -357,8 +357,8 @@
                 <!-- Trigger 2 -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3.5 border-b border-slate-100">
                   <div>
-                    <div class="text-sm font-bold text-slate-900">No prior transfers to this beneficiary in 90 days</div>
-                    <div class="text-xs text-slate-500 mt-0.5">No earlier transfers from •4821 to •9134 in the 90-day history.</div>
+                    <div class="text-sm font-bold text-slate-900">Amount Outlier vs Card Average</div>
+                    <div class="text-xs text-slate-500 mt-0.5">Amount is 8.4x higher than this card's historical average spend.</div>
                   </div>
                   <div class="flex items-center gap-3">
                     <span class="badge-signal">Risk signal</span>
@@ -369,8 +369,8 @@
                 <!-- Trigger 3 -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <div class="text-sm font-bold text-slate-900">Shared device fingerprint</div>
-                    <div class="text-xs text-slate-500 mt-0.5">Session logs link D-074 to accounts •9134 and •6602 in the past 24 hours.</div>
+                    <div class="text-sm font-bold text-slate-900">Off-Hours Activity</div>
+                    <div class="text-xs text-slate-500 mt-0.5">Transaction initiated during high-risk overnight hours (23:06 EST).</div>
                   </div>
                   <div class="flex items-center gap-3">
                     <span class="badge-signal">Risk signal</span>
@@ -386,15 +386,15 @@
               <div class="flex items-center justify-between mb-3">
                 <h2 class="text-base font-bold text-slate-900">Explore connections</h2>
                 <span class="text-xs px-2.5 py-1 bg-slate-100 rounded-md text-slate-600 font-mono font-medium" id="connections-path-pill">
-                  •4821 → •9134 → •7712
+                  •7538 → Bauch-Raynor → Senatobia, MS
                 </span>
               </div>
               
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
                 <div>
-                  <div class="text-xs font-bold text-slate-800" id="conn-headline">Connected Alerts &amp; Devices</div>
+                  <div class="text-xs font-bold text-slate-800" id="conn-headline">Entity Network: Bauch-Raynor</div>
                   <div class="text-xs text-slate-500 mt-0.5" id="conn-desc">
-                    <span class="text-blue-600 font-semibold cursor-pointer hover:underline" onclick="openAlertCase('ALT-90228')">ALT-90228</span> • Lucas Martin • Account •6602 shares device fingerprint D-074 with •9134.
+                    Merchant 'Bauch-Raynor' has 162 total transactions. Shared cards: •0372, •8308. Settlement: Senatobia, MS.
                   </div>
                 </div>
                 <button onclick="switchTab('connections')" class="text-xs text-blue-600 font-medium hover:underline whitespace-nowrap">
@@ -433,37 +433,37 @@
                     </svg>
                   </div>
                   <div>
-                    <div class="text-base font-bold text-slate-900" id="cust-name">Marta Kowalska</div>
-                    <div class="text-xs text-slate-500" id="cust-id-badge">ID 4821 • Premium account • since 2021</div>
+                    <div class="text-base font-bold text-slate-900" id="cust-name">Travis Daniel</div>
+                    <div class="text-xs text-slate-500" id="cust-id-badge">Card •7538 • Grocery POS • Senatobia, MS</div>
                   </div>
                 </div>
 
                 <!-- Outgoing Transfers Info -->
                 <div class="pt-2">
-                  <div class="text-xs font-bold text-slate-900 mb-2">Outgoing transfers</div>
+                  <div class="text-xs font-bold text-slate-900 mb-2">Cardholder spending baseline</div>
                   <div class="space-y-1.5 text-xs">
                     <div class="flex items-center justify-between text-slate-600">
-                      <span>Typical amount</span>
-                      <span class="font-semibold text-slate-900" id="cust-typical-amt">€40–€380</span>
+                      <span>Typical transaction size</span>
+                      <span class="font-semibold text-slate-900" id="cust-typical-amt">$20.00–$55.00</span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600">
-                      <span>Largest prior transfer</span>
-                      <span class="font-semibold text-slate-900" id="cust-largest-prior">€1,120</span>
+                      <span>Largest prior purchase</span>
+                      <span class="font-semibold text-slate-900" id="cust-largest-prior">$142.50</span>
                     </div>
                   </div>
                 </div>
 
                 <!-- Session for TX -->
                 <div class="pt-2 border-t border-slate-100">
-                  <div class="text-xs font-bold text-slate-900 mb-2" id="cust-session-header">Session for TX-7814</div>
+                  <div class="text-xs font-bold text-slate-900 mb-2" id="cust-session-header">Transaction Telemetry</div>
                   <div class="space-y-1.5 text-xs">
                     <div class="flex items-center justify-between text-slate-600">
-                      <span>Device status</span>
-                      <span class="font-semibold text-amber-600" id="cust-device-status">New</span>
+                      <span>POS Terminal Status</span>
+                      <span class="font-semibold text-amber-600" id="cust-device-status">In-Store Terminal POS</span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600">
                       <span>Payment channel</span>
-                      <span class="font-semibold text-slate-900" id="cust-payment-channel">Mobile banking</span>
+                      <span class="font-semibold text-slate-900" id="cust-payment-channel">Point of Sale (POS)</span>
                     </div>
                   </div>
                 </div>
@@ -474,7 +474,7 @@
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                     </svg>
-                    <span>Call Customer</span>
+                    <span>Contact Cardholder</span>
                   </button>
                 </div>
 
@@ -487,16 +487,16 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                   </div>
                   <div>
-                    <div class="text-base font-bold text-slate-900" id="bene-name">David Oister</div>
-                    <div class="text-xs text-slate-500" id="bene-account">Account •9134</div>
+                    <div class="text-base font-bold text-slate-900" id="bene-name">Bauch-Raynor</div>
+                    <div class="text-xs text-slate-500" id="bene-account">Merchant ID •8391</div>
                   </div>
                 </div>
 
                 <div class="space-y-2 text-xs pt-2">
-                  <div class="flex justify-between text-slate-600"><span>Bank:</span><span class="font-semibold text-slate-900" id="bene-bank">mBank S.A.</span></div>
-                  <div class="flex justify-between text-slate-600"><span>Country:</span><span class="font-semibold text-slate-900" id="bene-country">Poland (PL)</span></div>
-                  <div class="flex justify-between text-slate-600"><span>Watchlist:</span><span class="font-semibold text-red-600" id="bene-status">Flagged Level 2</span></div>
-                  <div class="flex justify-between text-slate-600"><span>Next Hop:</span><span class="font-semibold text-slate-900" id="bene-dest">Revolut Ltd •7712</span></div>
+                  <div class="flex justify-between text-slate-600"><span>Bank:</span><span class="font-semibold text-slate-900" id="bene-bank">Commercial Acquirer Bank</span></div>
+                  <div class="flex justify-between text-slate-600"><span>Country:</span><span class="font-semibold text-slate-900" id="bene-country">United States (US)</span></div>
+                  <div class="flex justify-between text-slate-600"><span>Watchlist:</span><span class="font-semibold text-red-600" id="bene-status">Elevated Risk Category</span></div>
+                  <div class="flex justify-between text-slate-600"><span>Terminal Location:</span><span class="font-semibold text-slate-900" id="bene-dest">Senatobia, MS</span></div>
                 </div>
               </div>
 
@@ -511,18 +511,18 @@
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
                     </svg>
                   </span>
-                  <span class="text-sm font-bold text-slate-900">AI insight</span>
+                  <span class="text-sm font-bold text-slate-900">AI insight (SHAP)</span>
                 </div>
                 <span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium" id="ai-badge">Unverified</span>
               </div>
 
-              <div class="text-xs font-bold text-slate-900 mb-1" id="ai-title">Possible pass-through activity</div>
+              <div class="text-xs font-bold text-slate-900 mb-1" id="ai-title">Anomalous Fraud Pattern Detected</div>
               <p class="text-xs text-slate-600 leading-relaxed mb-4" id="ai-desc">
-                Check whether the shared device and rapid onward transfer have a legitimate explanation. Model ensemble identifies anomalous velocity with 94.0% confidence.
+                Model identifies high risk with 94/100 score. Primary drivers: High financial transfer value of $949.49; Amount is 8.4x higher than cardholder average.
               </p>
 
               <button onclick="openEvidenceModal()" class="w-full py-2 px-4 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 transition shadow-sm">
-                Review Sources
+                Review Benchmark Evidence
               </button>
             </div>
 
@@ -535,10 +535,10 @@
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
                   </svg>
                 </span>
-                <span class="text-sm font-bold text-slate-900">Evidences</span>
+                <span class="text-sm font-bold text-slate-900">Evaluation Evidence</span>
               </div>
               <div class="text-xs text-slate-600" id="evidences-text">
-                4 evidence items saved • 1 verified • 3 to verify
+                Model PR-AUC: 0.8833 • 5 SHAP risk drivers evaluated
               </div>
             </div>
 
@@ -598,59 +598,17 @@
         <div class="sentra-card p-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h2 class="text-lg font-bold text-slate-900">Connection Graph &amp; Entity Resolution</h2>
-              <div class="text-xs text-slate-500">Visual mapping of accounts, devices, and funds velocity</div>
+              <h2 class="text-lg font-bold text-slate-900">Entity Network Graph &amp; Shared Merchant Analysis</h2>
+              <div class="text-xs text-slate-500">Real-time graph mapping cards, merchants, and geographic hubs from test split data</div>
             </div>
             <span class="text-xs px-3 py-1 bg-blue-50 text-blue-700 font-semibold rounded-md border border-blue-200">
-              Graph Engine: Realtime
+              Graph Engine: Real Test Split
             </span>
           </div>
 
-          <!-- SVG Visual Network -->
-          <div class="bg-slate-900 rounded-xl p-8 relative overflow-hidden flex items-center justify-center min-h-[420px]">
-            <svg class="w-full h-96" viewBox="0 0 800 360" fill="none">
-              <!-- Connecting lines -->
-              <line x1="120" y1="180" x2="380" y2="180" stroke="#3b82f6" stroke-width="3" stroke-dasharray="6 6"/>
-              <line x1="380" y1="180" x2="660" y2="180" stroke="#ef4444" stroke-width="3"/>
-              <line x1="380" y1="180" x2="380" y2="60" stroke="#f59e0b" stroke-width="2"/>
-              <line x1="380" y1="60" x2="620" y2="60" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
-
-              <!-- Node 1: Cardholder Marta Kowalska -->
-              <circle cx="120" cy="180" r="32" fill="#1e293b" stroke="#10b981" stroke-width="3"/>
-              <text x="120" y="176" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">Marta K.</text>
-              <text x="120" y="192" fill="#94a3b8" font-size="10" text-anchor="middle">•4821</text>
-              <text x="120" y="232" fill="#10b981" font-size="11" font-weight="600" text-anchor="middle">Sender Origin</text>
-
-              <!-- Line transfer label -->
-              <rect x="210" y="162" width="80" height="22" rx="4" fill="#0f172a" stroke="#3b82f6"/>
-              <text x="250" y="177" fill="#60a5fa" font-size="10" font-weight="bold" text-anchor="middle">€9,800</text>
-
-              <!-- Node 2: Intermediary David Oister -->
-              <circle cx="380" cy="180" r="36" fill="#1e293b" stroke="#f59e0b" stroke-width="3"/>
-              <text x="380" y="176" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">David O.</text>
-              <text x="380" y="192" fill="#94a3b8" font-size="10" text-anchor="middle">•9134</text>
-              <text x="380" y="235" fill="#f59e0b" font-size="11" font-weight="600" text-anchor="middle">Intermediary (8 min)</text>
-
-              <!-- Line transfer label 2 -->
-              <rect x="480" y="162" width="80" height="22" rx="4" fill="#0f172a" stroke="#ef4444"/>
-              <text x="520" y="177" fill="#f87171" font-size="10" font-weight="bold" text-anchor="middle">€9,600</text>
-
-              <!-- Node 3: External Mule Account -->
-              <circle cx="660" cy="180" r="34" fill="#1e293b" stroke="#ef4444" stroke-width="3"/>
-              <text x="660" y="176" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">External</text>
-              <text x="660" y="192" fill="#f87171" font-size="10" text-anchor="middle">•7712</text>
-              <text x="660" y="234" fill="#ef4444" font-size="11" font-weight="600" text-anchor="middle">Alert Triggered</text>
-
-              <!-- Device Node (Top) -->
-              <circle cx="380" cy="60" r="26" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
-              <text x="380" y="64" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">D-074</text>
-              <text x="380" y="28" fill="#cbd5e1" font-size="11" text-anchor="middle">Shared Device</text>
-
-              <!-- Linked Account Node (Top Right) -->
-              <circle cx="620" cy="60" r="26" fill="#1e293b" stroke="#e2e8f0" stroke-width="2"/>
-              <text x="620" y="64" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">•6602</text>
-              <text x="620" y="28" fill="#94a3b8" font-size="11" text-anchor="middle">ALT-90228 (Lucas)</text>
-            </svg>
+          <!-- Dynamic SVG Visual Network Container -->
+          <div id="connections-svg-container" class="bg-slate-900 rounded-xl p-6 relative overflow-hidden flex items-center justify-center min-h-[420px]">
+            <!-- Rendered dynamically by renderConnectionsGraph(currentAlertData) -->
           </div>
         </div>
       </div>
@@ -662,11 +620,11 @@
         <div class="sentra-card p-6">
           <div class="flex items-center justify-between mb-6">
             <div>
-              <h2 class="text-lg font-bold text-slate-900">Machine Learning Model Benchmarks</h2>
-              <div class="text-xs text-slate-500">Trained on credit card dataset (fraudTest.csv) with class-imbalance weighting</div>
+              <h2 class="text-lg font-bold text-slate-900">Model Evaluation &amp; Cost Analysis (docs/results.json)</h2>
+              <div class="text-xs text-slate-500">Evaluated strictly on held-out test split (83,358 transactions, 86 frauds) • Thresholds tuned on validation set</div>
             </div>
             <span class="text-xs px-3 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-md border border-emerald-200">
-              Ensemble: XGBoost + Random Forest
+              Primary Metric: PR-AUC (Average Precision)
             </span>
           </div>
 
@@ -676,83 +634,141 @@
             <div class="border border-slate-200 rounded-xl p-5 bg-slate-50">
               <div class="flex items-center justify-between mb-4">
                 <span class="text-sm font-bold text-slate-900">⚡ XGBoost Classifier</span>
-                <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">Primary</span>
+                <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">Top Tree Model</span>
               </div>
               <div class="grid grid-cols-2 gap-3 text-xs">
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">ROC-AUC</div>
-                  <div class="text-lg font-extrabold text-blue-600 mt-0.5">0.9986</div>
+                  <div class="text-slate-400 font-semibold">PR-AUC (Primary)</div>
+                  <div class="text-lg font-extrabold text-blue-600 mt-0.5" id="ev-xgb-prauc">0.8833</div>
+                  <div class="text-[10px] text-slate-400">95% CI: [0.824, 0.930]</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">Accuracy</div>
-                  <div class="text-lg font-extrabold text-emerald-600 mt-0.5">99.90%</div>
+                  <div class="text-slate-400 font-semibold">ROC-AUC</div>
+                  <div class="text-lg font-extrabold text-slate-900 mt-0.5" id="ev-xgb-rocauc">0.9994</div>
+                  <div class="text-[10px] text-slate-400">95% CI: [0.999, 1.000]</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">Precision (Fraud)</div>
-                  <div class="text-lg font-extrabold text-slate-900 mt-0.5">88.31%</div>
+                  <div class="text-slate-400 font-semibold">Recall (Fraud)</div>
+                  <div class="text-lg font-extrabold text-emerald-600 mt-0.5" id="ev-xgb-recall">91.86%</div>
+                  <div class="text-[10px] text-slate-400">79 of 86 detected</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">F1 Score (Fraud)</div>
-                  <div class="text-lg font-extrabold text-slate-900 mt-0.5">0.8662</div>
+                  <div class="text-slate-400 font-semibold">Precision &amp; F1</div>
+                  <div class="text-lg font-extrabold text-slate-900 mt-0.5" id="ev-xgb-f1">0.7488</div>
+                  <div class="text-[10px] text-slate-400">Prec: 63.2% (T*=0.82)</div>
                 </div>
+              </div>
+              <div class="mt-3 p-2.5 bg-blue-50/50 rounded-lg text-xs text-blue-800 flex justify-between">
+                <span>Net Financial Savings:</span>
+                <span class="font-bold text-blue-700" id="ev-xgb-savings">$45,826.25 (91.4% saved)</span>
               </div>
             </div>
 
-            <!-- Random Forest Card -->
+            <!-- Averaged Ensemble Card -->
             <div class="border border-slate-200 rounded-xl p-5 bg-slate-50">
               <div class="flex items-center justify-between mb-4">
-                <span class="text-sm font-bold text-slate-900">🌲 Random Forest (Balanced)</span>
-                <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">Secondary</span>
+                <span class="text-sm font-bold text-slate-900">🛡️ Averaged Ensemble (XGBoost + RF)</span>
+                <span class="text-xs px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">Soft-Voting</span>
               </div>
               <div class="grid grid-cols-2 gap-3 text-xs">
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">ROC-AUC</div>
-                  <div class="text-lg font-extrabold text-blue-600 mt-0.5">0.9911</div>
+                  <div class="text-slate-400 font-semibold">PR-AUC (Primary)</div>
+                  <div class="text-lg font-extrabold text-purple-600 mt-0.5" id="ev-ens-prauc">0.8262</div>
+                  <div class="text-[10px] text-slate-400">95% CI: [0.750, 0.880]</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">Accuracy</div>
-                  <div class="text-lg font-extrabold text-emerald-600 mt-0.5">99.56%</div>
+                  <div class="text-slate-400 font-semibold">ROC-AUC</div>
+                  <div class="text-lg font-extrabold text-slate-900 mt-0.5" id="ev-ens-rocauc">0.9996</div>
+                  <div class="text-[10px] text-slate-400">Highest Discriminatory Power</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">Recall (Fraud)</div>
-                  <div class="text-lg font-extrabold text-slate-900 mt-0.5">82.50%</div>
+                  <div class="text-slate-400 font-semibold">Precision (Fraud)</div>
+                  <div class="text-lg font-extrabold text-emerald-600 mt-0.5" id="ev-ens-prec">66.67%</div>
+                  <div class="text-[10px] text-slate-400">Lowest False Alarm Rate</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-slate-200">
-                  <div class="text-slate-400">F1 Score (Fraud)</div>
-                  <div class="text-lg font-extrabold text-slate-900 mt-0.5">0.6000</div>
+                  <div class="text-slate-400 font-semibold">Recall &amp; F1</div>
+                  <div class="text-lg font-extrabold text-slate-900 mt-0.5" id="ev-ens-f1">0.6927</div>
+                  <div class="text-[10px] text-slate-400">Recall: 72.1% (T*=0.74)</div>
                 </div>
+              </div>
+              <div class="mt-3 p-2.5 bg-purple-50/50 rounded-lg text-xs text-purple-800 flex justify-between">
+                <span>Net Financial Savings:</span>
+                <span class="font-bold text-purple-700" id="ev-ens-savings">$35,990.00 (71.8% saved)</span>
               </div>
             </div>
 
           </div>
 
+          <!-- Financial Cost Analysis Panel -->
+          <div class="mt-6 p-4 rounded-xl border border-slate-200 bg-slate-50/60">
+            <h3 class="text-sm font-bold text-slate-900 mb-2">Financial Cost Model &amp; Impact Analysis</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div class="bg-white p-3 rounded-lg border border-slate-200">
+                <div class="text-slate-500">Avg Fraud Loss (FN)</div>
+                <div class="text-base font-extrabold text-slate-900 mt-0.5">$582.99</div>
+              </div>
+              <div class="bg-white p-3 rounded-lg border border-slate-200">
+                <div class="text-slate-500">Manual Review Cost (FP)</div>
+                <div class="text-base font-extrabold text-slate-900 mt-0.5">$5.00</div>
+              </div>
+              <div class="bg-white p-3 rounded-lg border border-slate-200">
+                <div class="text-slate-500">Baseline Loss (No ML)</div>
+                <div class="text-base font-extrabold text-red-600 mt-0.5">$50,137.18</div>
+              </div>
+              <div class="bg-white p-3 rounded-lg border border-slate-200">
+                <div class="text-slate-500">Total Net Savings</div>
+                <div class="text-base font-extrabold text-emerald-600 mt-0.5">$45,826.25</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Publication Figures -->
+          <div class="mt-6 pt-6 border-t border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-4">Evaluation Curves &amp; Visual Evidence</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="border border-slate-200 rounded-xl overflow-hidden bg-white p-2">
+                <div class="text-xs font-bold text-slate-800 mb-2 px-2">Precision-Recall Curve (All Models)</div>
+                <img src="/docs/precision_recall_curve.png" alt="Precision-Recall Curve" class="w-full rounded border border-slate-100 hover:opacity-90 cursor-pointer" onclick="window.open('/docs/precision_recall_curve.png', '_blank')"/>
+              </div>
+              <div class="border border-slate-200 rounded-xl overflow-hidden bg-white p-2">
+                <div class="text-xs font-bold text-slate-800 mb-2 px-2">Confusion Matrix Heatmaps</div>
+                <img src="/docs/confusion_matrix_heatmap.png" alt="Confusion Matrix Heatmap" class="w-full rounded border border-slate-100 hover:opacity-90 cursor-pointer" onclick="window.open('/docs/confusion_matrix_heatmap.png', '_blank')"/>
+              </div>
+              <div class="border border-slate-200 rounded-xl overflow-hidden bg-white p-2">
+                <div class="text-xs font-bold text-slate-800 mb-2 px-2">SHAP Global Feature Summary</div>
+                <img src="/docs/shap_summary.png" alt="SHAP Summary Plot" class="w-full rounded border border-slate-100 hover:opacity-90 cursor-pointer" onclick="window.open('/docs/shap_summary.png', '_blank')"/>
+              </div>
+            </div>
+          </div>
+
           <!-- Feature Importance List -->
           <div class="mt-6 pt-6 border-t border-slate-200">
-            <h3 class="text-sm font-bold text-slate-900 mb-3">Top Feature Weights in Scoring</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Top SHAP Feature Attributions (XGBoost)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs" id="evidence-features-grid">
               <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
                 <span class="font-medium text-slate-700">1. Transaction Amount (`amt`)</span>
-                <span class="font-bold text-blue-600">32.4%</span>
+                <span class="font-bold text-blue-600">|SHAP| = 2.8987</span>
               </div>
               <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                <span class="font-medium text-slate-700">2. Customer-Merchant Distance</span>
-                <span class="font-bold text-blue-600">21.8%</span>
+                <span class="font-medium text-slate-700">2. 24h Spend Sum (`amt_sum_last_24h`)</span>
+                <span class="font-bold text-blue-600">|SHAP| = 1.3606</span>
               </div>
               <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                <span class="font-medium text-slate-700">3. Merchant Category Encoded</span>
-                <span class="font-bold text-blue-600">14.6%</span>
+                <span class="font-medium text-slate-700">3. 24h Card Velocity (`txn_count_last_24h`)</span>
+                <span class="font-bold text-blue-600">|SHAP| = 1.1686</span>
               </div>
               <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                <span class="font-medium text-slate-700">4. Hour of Day (`hour`)</span>
-                <span class="font-bold text-blue-600">11.2%</span>
+                <span class="font-medium text-slate-700">4. Sector Fraud Rate</span>
+                <span class="font-bold text-blue-600">|SHAP| = 0.9371</span>
               </div>
               <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                <span class="font-medium text-slate-700">5. Amount per City Population</span>
-                <span class="font-bold text-blue-600">9.5%</span>
+                <span class="font-medium text-slate-700">5. Category Encoding</span>
+                <span class="font-bold text-blue-600">|SHAP| = 0.6871</span>
               </div>
               <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                <span class="font-medium text-slate-700">6. Cardholder Age</span>
-                <span class="font-bold text-blue-600">6.1%</span>
+                <span class="font-medium text-slate-700">6. Overnight Timing (`is_night`)</span>
+                <span class="font-bold text-blue-600">|SHAP| = 0.6673</span>
               </div>
             </div>
           </div>
@@ -771,24 +787,24 @@
               <span class="w-2 h-2 rounded-full bg-blue-600 mt-1.5 flex-shrink-0"></span>
               <div>
                 <div class="font-bold text-slate-900">Alert Assigned to Anna Reyes</div>
-                <div class="text-slate-500">System routed priority AML case ALT-10482 to Tier-2 Fraud Queue.</div>
-                <div class="text-[11px] text-slate-400 mt-1">12:48 CET • Automated Rule Engine</div>
+                <div class="text-slate-500">System routed priority ML case to Tier-2 Fraud Queue.</div>
+                <div class="text-[11px] text-slate-400 mt-1">23:06 EST • Model Routing Engine</div>
               </div>
             </div>
             <div class="flex items-start gap-3 pb-3 border-b border-slate-100 text-xs">
               <span class="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0"></span>
               <div>
-                <div class="font-bold text-slate-900">Rapid Velocity Trigger Tripped</div>
-                <div class="text-slate-500">€9,600 outgoing transfer detected 8 minutes following €9,800 SEPA Instant credit.</div>
-                <div class="text-[11px] text-slate-400 mt-1">12:48 CET • Detection Engine v2.4</div>
+                <div class="font-bold text-slate-900">Extreme Spend Deviation Detected</div>
+                <div class="text-slate-500">$949.49 transfer flagged with risk score 94/100 (8.4x cardholder baseline).</div>
+                <div class="text-[11px] text-slate-400 mt-1">23:06 EST • Detection Engine (XGBoost)</div>
               </div>
             </div>
             <div class="flex items-start gap-3 text-xs">
               <span class="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0"></span>
               <div>
-                <div class="font-bold text-slate-900">Inbound Transfer Settled</div>
-                <div class="text-slate-500">€9,800 credit from Marta Kowalska Account •4821 cleared successfully.</div>
-                <div class="text-[11px] text-slate-400 mt-1">12:40 CET • SEPA Clearing House</div>
+                <div class="font-bold text-slate-900">Card Baseline Profile Evaluated</div>
+                <div class="text-slate-500">Cardholder routine baseline average is $43.39 across past purchases.</div>
+                <div class="text-[11px] text-slate-400 mt-1">23:05 EST • Feature Pipeline</div>
               </div>
             </div>
           </div>
@@ -868,8 +884,8 @@
     <form id="livetest-form" onsubmit="runMLSimulation(event)" class="space-y-4">
       <div class="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <label class="block font-bold text-slate-700 mb-1">Amount (€ / $)</label>
-          <input type="number" step="0.01" id="sim-amt" value="9800.00" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600 font-bold" required/>
+          <label class="block font-bold text-slate-700 mb-1">Amount ($ USD)</label>
+          <input type="number" step="0.01" id="sim-amt" value="850.00" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600 font-bold" required/>
         </div>
 
         <div>
@@ -887,12 +903,12 @@
 
         <div>
           <label class="block font-bold text-slate-700 mb-1">Hour of Day (0–23)</label>
-          <input type="number" min="0" max="23" id="sim-hour" value="12" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600" required/>
+          <input type="number" min="0" max="23" id="sim-hour" value="23" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600" required/>
         </div>
 
         <div>
           <label class="block font-bold text-slate-700 mb-1">Customer Name</label>
-          <input type="text" id="sim-customer" value="Marta Kowalska" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600"/>
+          <input type="text" id="sim-customer" value="Travis Daniel" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600"/>
         </div>
 
         <div>
@@ -902,7 +918,7 @@
 
         <div>
           <label class="block font-bold text-slate-700 mb-1">City Population</label>
-          <input type="number" id="sim-pop" value="450000" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600"/>
+          <input type="number" id="sim-pop" value="45000" class="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-600"/>
         </div>
       </div>
 
@@ -932,17 +948,17 @@
     <div class="space-y-4 text-xs">
       <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
         <div class="text-slate-400 mb-0.5">Primary Cardholder</div>
-        <div class="text-sm font-bold text-slate-900" id="call-modal-name">Marta Kowalska</div>
-        <div class="text-slate-600 mt-1">Phone: <span class="font-bold text-slate-900" id="call-modal-phone">+48 501 234 892</span></div>
-        <div class="text-slate-600">Email: <span class="text-blue-600 font-medium" id="call-modal-email">marta.kowalska@client.pl</span></div>
+        <div class="text-sm font-bold text-slate-900" id="call-modal-name">Travis Daniel</div>
+        <div class="text-slate-600 mt-1">Phone: <span class="font-bold text-slate-900" id="call-modal-phone">+1 (555) 234-8921</span></div>
+        <div class="text-slate-600">Email: <span class="text-blue-600 font-medium" id="call-modal-email">travis.daniel@example.com</span></div>
       </div>
 
       <div class="border border-slate-200 rounded-xl p-3">
         <div class="font-bold text-slate-900 mb-1">Identity Verification Checklist</div>
         <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
-          <li>Confirm transfer of €9,800 to Account •9134</li>
-          <li>Ask if device D-074 is recognized</li>
-          <li>Verify registered billing address</li>
+          <li>Confirm flagged transaction amount and merchant</li>
+          <li>Inquire if terminal location aligns with cardholder travel</li>
+          <li>Verify billing address and recent authorized purchases</li>
         </ul>
       </div>
 
