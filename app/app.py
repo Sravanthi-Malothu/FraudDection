@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.features import build_feature_dict, FEATURE_COLS
 from src.explain import identify_risk_triggers
+from src.train import AveragedEnsemble
 
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -35,25 +36,37 @@ CORS(app)
 # ── Load ML Models at Startup ──────────────────────────────────────────────────
 rf_model = None
 xgb_model = None
+lr_model = None
+ensemble_model = None
 le_category = None
 feature_cols = None
 model_metrics = None
+model_metadata = None
 cat_fraud_rates = None
 
 
 def load_models():
-    global rf_model, xgb_model, le_category, feature_cols, model_metrics, cat_fraud_rates
+    global rf_model, xgb_model, lr_model, ensemble_model, le_category, feature_cols, model_metrics, model_metadata, cat_fraud_rates
     rf_path = MODELS_DIR / "random_forest.joblib"
     xgb_path = MODELS_DIR / "xgboost.joblib"
+    lr_path = MODELS_DIR / "logistic_regression.joblib"
+    ens_path = MODELS_DIR / "ensemble.joblib"
     le_path = MODELS_DIR / "le_category.joblib"
     fc_path = MODELS_DIR / "feature_cols.joblib"
     mt_path = MODELS_DIR / "metrics.joblib"
     cfr_path = MODELS_DIR / "category_fraud_rates.joblib"
+    meta_path = MODELS_DIR / "metadata.json"
 
-    if rf_path.exists() and xgb_path.exists():
+    if rf_path.exists() or xgb_path.exists() or ens_path.exists():
         try:
-            rf_model = joblib.load(rf_path)
-            xgb_model = joblib.load(xgb_path)
+            if rf_path.exists():
+                rf_model = joblib.load(rf_path)
+            if xgb_path.exists():
+                xgb_model = joblib.load(xgb_path)
+            if lr_path.exists():
+                lr_model = joblib.load(lr_path)
+            if ens_path.exists():
+                ensemble_model = joblib.load(ens_path)
             if le_path.exists():
                 le_category = joblib.load(le_path)
             if fc_path.exists():
@@ -64,6 +77,9 @@ def load_models():
                 model_metrics = joblib.load(mt_path)
             if cfr_path.exists():
                 cat_fraud_rates = joblib.load(cfr_path)
+            if meta_path.exists():
+                with open(meta_path) as f:
+                    model_metadata = json.load(f)
             print("[Sentra] ML Models loaded successfully.")
         except Exception as e:
             print(f"[Sentra] Error loading models: {e}")
@@ -554,13 +570,27 @@ def api_predict():
 
         rf_prob = 0.5
         xgb_prob = 0.5
+        ensemble_prob = 0.5
 
-        if rf_model is not None and xgb_model is not None:
-            cols = feature_cols if feature_cols is not None else FEATURE_COLS
-            X = pd.DataFrame([feature_dict])[cols]
+        cols = feature_cols if feature_cols is not None else FEATURE_COLS
+        X = pd.DataFrame([feature_dict])[cols]
+
+        if ensemble_model is not None:
+            ensemble_prob = float(ensemble_model.predict_proba(X)[0][1])
+            if rf_model is not None:
+                rf_prob = float(rf_model.predict_proba(X)[0][1])
+            if xgb_model is not None:
+                xgb_prob = float(xgb_model.predict_proba(X)[0][1])
+        elif rf_model is not None and xgb_model is not None:
             rf_prob = float(rf_model.predict_proba(X)[0][1])
             xgb_prob = float(xgb_model.predict_proba(X)[0][1])
             ensemble_prob = (rf_prob + xgb_prob) / 2.0
+        elif rf_model is not None:
+            rf_prob = float(rf_model.predict_proba(X)[0][1])
+            ensemble_prob = rf_prob
+        elif xgb_model is not None:
+            xgb_prob = float(xgb_model.predict_proba(X)[0][1])
+            ensemble_prob = xgb_prob
         else:
             amt = float(data.get("amt", 100))
             ensemble_prob = 0.94 if amt > 5000 else (0.75 if amt > 1000 else 0.05)

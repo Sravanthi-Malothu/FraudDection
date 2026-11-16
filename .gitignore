@@ -32,7 +32,9 @@ data/*.csv
 data/*.parquet
 
 # Model artifacts
-models/
+models/*.joblib
+models/*.pkl
+models/*.pickle
 *.joblib
 *.pkl
 *.pickle
