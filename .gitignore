@@ -30,6 +30,10 @@ Thumbs.db
 *.hdf5
 data/*.csv
 data/*.parquet
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
 
 # Model artifacts
 models/*.joblib

@@ -9,3 +9,4 @@ matplotlib==3.11.0
 shap==0.54.1
 optuna==5.0.0
 pytest==9.0.3
+gunicorn==23.0.0
