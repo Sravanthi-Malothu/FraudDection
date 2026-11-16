@@ -1,4 +1,50 @@
-*.csv
-models/
+# Python bytecode & cache
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
 .venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Data files
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+data/*.csv
+data/*.parquet
+
+# Model artifacts
+models/
+*.joblib
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.onnx
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE / Editor configs
+.idea/
+.vscode/
+*.swp
+*.swo
