@@ -152,12 +152,24 @@ def train_models(data_dir=DATA_DIR, models_dir=MODELS_DIR, random_state=42):
     print_class_balance("Held-Out Test Split (15%)", df_test["is_fraud"])
 
     # 3. Fit encoders on training set ONLY, then transform validation and test
-    print("[Feature Engineering] Fitting category encoders on TRAINING set only...")
-    df_train, le_category = engineer_features(df_train, fit=True)
+    print("[Feature Engineering] Fitting category encoders & fraud rates on TRAINING set only...")
+    df_train, le_category, cat_fraud_rates, glob_fraud_rate = engineer_features(df_train, fit=True)
 
     print("[Feature Engineering] Applying fitted encoders to Validation and Test sets...")
-    df_val, _ = engineer_features(df_val, le_category=le_category, fit=False)
-    df_test, _ = engineer_features(df_test, le_category=le_category, fit=False)
+    df_val, _, _, _ = engineer_features(
+        df_val,
+        le_category=le_category,
+        category_fraud_rates=cat_fraud_rates,
+        global_fraud_rate=glob_fraud_rate,
+        fit=False,
+    )
+    df_test, _, _, _ = engineer_features(
+        df_test,
+        le_category=le_category,
+        category_fraud_rates=cat_fraud_rates,
+        global_fraud_rate=glob_fraud_rate,
+        fit=False,
+    )
 
     # 4. Remove identifier columns that leak
     # Ensure raw identifiers are strictly excluded from the feature matrices
@@ -246,6 +258,7 @@ def train_models(data_dir=DATA_DIR, models_dir=MODELS_DIR, random_state=42):
     joblib.dump(xgb, models_dir / "xgboost.joblib")
     joblib.dump(le_category, models_dir / "le_category.joblib")
     joblib.dump(FEATURE_COLS, models_dir / "feature_cols.joblib")
+    joblib.dump(cat_fraud_rates, models_dir / "category_fraud_rates.joblib")
 
     all_metrics = {
         "rf": rf_test_metrics,

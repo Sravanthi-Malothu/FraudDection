@@ -38,15 +38,17 @@ xgb_model = None
 le_category = None
 feature_cols = None
 model_metrics = None
+cat_fraud_rates = None
 
 
 def load_models():
-    global rf_model, xgb_model, le_category, feature_cols, model_metrics
+    global rf_model, xgb_model, le_category, feature_cols, model_metrics, cat_fraud_rates
     rf_path = MODELS_DIR / "random_forest.joblib"
     xgb_path = MODELS_DIR / "xgboost.joblib"
     le_path = MODELS_DIR / "le_category.joblib"
     fc_path = MODELS_DIR / "feature_cols.joblib"
     mt_path = MODELS_DIR / "metrics.joblib"
+    cfr_path = MODELS_DIR / "category_fraud_rates.joblib"
 
     if rf_path.exists() and xgb_path.exists():
         try:
@@ -60,6 +62,8 @@ def load_models():
                 feature_cols = FEATURE_COLS
             if mt_path.exists():
                 model_metrics = joblib.load(mt_path)
+            if cfr_path.exists():
+                cat_fraud_rates = joblib.load(cfr_path)
             print("[Sentra] ML Models loaded successfully.")
         except Exception as e:
             print(f"[Sentra] Error loading models: {e}")
@@ -542,7 +546,11 @@ def api_predict():
     """Real-time ML scoring using XGBoost + Random Forest ensemble."""
     try:
         data = request.get_json(force=True) or {}
-        feature_dict = build_feature_dict(data, le_category=le_category)
+        feature_dict = build_feature_dict(
+            data,
+            le_category=le_category,
+            category_fraud_rates=cat_fraud_rates,
+        )
 
         rf_prob = 0.5
         xgb_prob = 0.5
