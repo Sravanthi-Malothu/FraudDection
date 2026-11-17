@@ -1,15 +1,15 @@
-# Sentra Fraud Detection & Alert Investigation Platform
-# Universal Container for Local Docker, Render, and Hugging Face Spaces
+# Base image: official Python 3.11 slim for Render's free tier (512 MB RAM)
 FROM python:3.11-slim
 
+# Environment settings
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    PORT=7860
+    PORT=10000
 
 WORKDIR /app
 
-# Install system dependencies (OpenMP for XGBoost, curl for health check)
+# Install system dependencies (libgomp1 for XGBoost OpenMP acceleration, curl for healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgomp1 \
@@ -20,31 +20,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create standard non-root user (UID 1000) required by Hugging Face Spaces
-RUN useradd -m -u 1000 user
-
-# Copy application code, trained models, documentation, and lightweight data caches
+# Copy application code, trained models, documentation, and committed 5k sample
 COPY app/ ./app/
 COPY src/ ./src/
 COPY models/ ./models/
 COPY docs/ ./docs/
 COPY data/alerts_cache.json ./data/
+COPY data/sample_transactions.csv ./data/
 COPY data/sample_test_transactions.json ./data/
 
-# Ensure data directory exists with write permissions for SQLite database persistence
-RUN mkdir -p /app/data && \
-    chown -R user:user /app && \
-    chmod -R 777 /app/data
+# Ensure SQLite runtime directory exists with read/write permissions
+RUN mkdir -p /app/data && chmod -R 777 /app/data
 
-# Switch to non-root user for security and Hugging Face Spaces compatibility
-USER user
+EXPOSE 10000 7860 5001
 
-# Expose Hugging Face Spaces port (7860) and standard port (5001)
-EXPOSE 7860 5001
-
-# Health check adapted to dynamic port
+# Container health monitoring
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-7860}/health || exit 1
+    CMD curl -f http://localhost:${PORT:-10000}/health || exit 1
 
-# Production WSGI server using Gunicorn dynamically binding to $PORT (7860 on HF, dynamic on Render)
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-7860} --workers 2 --threads 2 --timeout 60 app.app:app"]
+# Serve with Gunicorn (1 worker, 2 threads) to stay comfortably within 512 MB RAM
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 2 --timeout 60 app.app:app"]

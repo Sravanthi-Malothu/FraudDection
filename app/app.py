@@ -38,7 +38,8 @@ setattr(sys.modules["__main__"], "AveragedEnsemble", AveragedEnsemble)
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 DOCS_DIR = PROJECT_ROOT / "docs"
-DATA_PATH = DATA_DIR / "fraudTest.csv"
+SAMPLE_CSV_PATH = DATA_DIR / "sample_transactions.csv"
+DATA_PATH = SAMPLE_CSV_PATH if SAMPLE_CSV_PATH.exists() else DATA_DIR / "fraudTest.csv"
 SAMPLE_TXNS_PATH = DATA_DIR / "sample_test_transactions.json"
 DB_PATH = DATA_DIR / "decisions.db"
 ALERTS_CACHE_PATH = DATA_DIR / "alerts_cache.json"
@@ -276,7 +277,39 @@ def get_sample_transactions():
     if _transactions_cache is not None:
         return _transactions_cache
 
-    # 1. Fast path: load lightweight curated sample (<40 KB)
+    # 1. Primary path: load from committed data/sample_transactions.csv (5,000 rows)
+    if SAMPLE_CSV_PATH.exists():
+        try:
+            df = pd.read_csv(SAMPLE_CSV_PATH, nrows=500)
+            sample_rows = []
+            for idx, r in df.head(100).iterrows():
+                amt = float(r["amt"])
+                is_fraud = int(r["is_fraud"])
+                cc_last4 = str(r["cc_num"])[-4:] if pd.notna(r["cc_num"]) else "0000"
+                first_name = str(r.get("first", "")).strip()
+                last_name = str(r.get("last", "")).strip()
+                full_name = f"{first_name} {last_name}".strip() or "Cardholder"
+
+                sample_rows.append({
+                    "trans_num": str(r.get("trans_num", f"TX-{idx}")),
+                    "customer": full_name,
+                    "card_masked": f"•••• {cc_last4}",
+                    "amount": f"${amt:,.2f}",
+                    "amt_raw": amt,
+                    "category": str(r.get("category", "")).replace("_", " ").title(),
+                    "merchant": str(r.get("merchant", "")).replace("fraud_", "").replace("_", " ").title(),
+                    "city_state": f"{r.get('city', '')}, {r.get('state', '')}",
+                    "datetime": str(r.get("trans_date_trans_time", "")),
+                    "is_fraud": is_fraud,
+                    "risk_score": 90 + int(amt % 9) if is_fraud else max(2, int(amt % 15)),
+                })
+            _transactions_cache = sample_rows
+            logger.info(f"Loaded {len(_transactions_cache)} sample transactions from sample_transactions.csv.")
+            return _transactions_cache
+        except Exception as e:
+            logger.warning(f"Error reading sample_transactions.csv: {e}")
+
+    # 2. Fast JSON cache fallback (<40 KB)
     if SAMPLE_TXNS_PATH.exists():
         try:
             with open(SAMPLE_TXNS_PATH) as f:
@@ -367,6 +400,7 @@ def health_check():
         "active_models": models_active,
         "model_version": get_model_version(),
         "database": "connected (sqlite)" if db_ok else "error",
+        "storage_note": "Ephemeral SQLite disk; decisions auto-initialize at startup and reset on redeploy.",
         "total_alerts_queued": len(alerts),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "project": "Sentra Fraud & AML Intelligence Platform",
@@ -745,6 +779,6 @@ def api_model_metrics():
 
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("PORT", 7860))
+    port = int(os.environ.get("PORT", 10000))
     logger.info(f"Starting server on http://0.0.0.0:{port}...")
     app.run(debug=False, host="0.0.0.0", port=port)

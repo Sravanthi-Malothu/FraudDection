@@ -3,8 +3,9 @@ services:
     name: sentra-fraud-detection
     runtime: python
     plan: free
+    region: oregon
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 60 app.app:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 60 app.app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9

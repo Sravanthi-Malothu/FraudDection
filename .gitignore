@@ -30,6 +30,7 @@ Thumbs.db
 *.hdf5
 data/*.csv
 data/*.parquet
+!data/sample_transactions.csv
 *.db
 *.sqlite
 *.sqlite3
