@@ -129,6 +129,7 @@ def load_models():
 
     rf_path = MODELS_DIR / "random_forest.joblib"
     xgb_path = MODELS_DIR / "xgboost.joblib"
+    xgb_json = MODELS_DIR / "xgboost.json"
     lr_path = MODELS_DIR / "logistic_regression.joblib"
     ens_path = MODELS_DIR / "ensemble.joblib"
     le_path = MODELS_DIR / "le_category.joblib"
@@ -137,9 +138,18 @@ def load_models():
     cfr_path = MODELS_DIR / "category_fraud_rates.joblib"
     meta_path = MODELS_DIR / "metadata.json"
 
-    if xgb_path.exists() or rf_path.exists() or ens_path.exists():
+    if xgb_path.exists() or xgb_json.exists() or rf_path.exists() or ens_path.exists():
         try:
-            if xgb_path.exists():
+            if xgb_json.exists():
+                try:
+                    import xgboost as xgb
+                    xgb_model = xgb.XGBClassifier()
+                    xgb_model.load_model(str(xgb_json))
+                except Exception as ex:
+                    logger.warning(f"Failed to load xgboost.json: {ex}. Falling back to joblib.")
+                    if xgb_path.exists():
+                        xgb_model = joblib.load(xgb_path)
+            elif xgb_path.exists():
                 xgb_model = joblib.load(xgb_path)
             if rf_path.exists():
                 rf_model = joblib.load(rf_path)

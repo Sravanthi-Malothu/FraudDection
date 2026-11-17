@@ -45,10 +45,23 @@ def get_best_model_and_explainer(models_dir=MODELS_DIR):
     models_dir = Path(models_dir)
 
     if _CACHED_MODEL is None:
+        xgb_json = models_dir / "xgboost.json"
         xgb_path = models_dir / "xgboost.joblib"
-        if not xgb_path.exists():
-            raise FileNotFoundError(f"Trained model not found at {xgb_path}. Run 'python src/train.py' first.")
-        _CACHED_MODEL = joblib.load(xgb_path)
+        if xgb_json.exists():
+            try:
+                import xgboost as xgb
+                clf = xgb.XGBClassifier()
+                clf.load_model(str(xgb_json))
+                _CACHED_MODEL = clf
+            except Exception:
+                if xgb_path.exists():
+                    _CACHED_MODEL = joblib.load(xgb_path)
+                else:
+                    raise
+        elif xgb_path.exists():
+            _CACHED_MODEL = joblib.load(xgb_path)
+        else:
+            raise FileNotFoundError(f"Trained model not found at {xgb_path} or {xgb_json}. Run 'python src/train.py' first.")
         _CACHED_EXPLAINER = shap.TreeExplainer(_CACHED_MODEL)
 
     if _CACHED_LE_CATEGORY is None:
