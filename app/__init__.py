@@ -1,11 +1,17 @@
 """
-app/__init__.py — Package entrypoint for the Sentra Web Application.
-Exposes the Flask 'app' instance so that both:
-  1. gunicorn app:app
-  2. gunicorn app.app:app
-resolve cleanly in deployment environments like Render.
+app package initialization.
+Exposes 'app' and 'application' so that both 'gunicorn app:app' and 'gunicorn app.app:app' work.
 """
+import sys
+from pathlib import Path
 
-from app.app import app
+# Ensure project root is in sys.path
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-__all__ = ["app"]
+from .app import app
+
+application = app
+
+__all__ = ["app", "application"]

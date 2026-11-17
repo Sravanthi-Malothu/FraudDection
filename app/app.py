@@ -50,6 +50,7 @@ app = Flask(
     static_folder=str(Path(__file__).resolve().parent / "static"),
 )
 CORS(app)
+application = app
 
 # ── SQLite Database Setup for Analyst Decisions ────────────────────────────────
 def init_db():
