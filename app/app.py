@@ -39,6 +39,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 DOCS_DIR = PROJECT_ROOT / "docs"
 DATA_PATH = DATA_DIR / "fraudTest.csv"
+SAMPLE_TXNS_PATH = DATA_DIR / "sample_test_transactions.json"
 DB_PATH = DATA_DIR / "decisions.db"
 ALERTS_CACHE_PATH = DATA_DIR / "alerts_cache.json"
 
@@ -261,47 +262,80 @@ def get_enriched_alert(alert_id, fallback_to_first=False):
     return alert
 
 
-# ── Sample Transactions Cache from CSV ─────────────────────────────────────────
+# ── Sample Transactions Cache for Fast Dashboard Startup ──────────────────────
 _transactions_cache = None
 
 
 def get_sample_transactions():
+    """
+    Returns curated sample transactions for the Transactions tab.
+    Prioritizes fast JSON cache (under 40KB, <1ms load time) for instant startup
+    in cloud environments like Render and Hugging Face Spaces.
+    """
     global _transactions_cache
     if _transactions_cache is not None:
         return _transactions_cache
 
-    if not DATA_PATH.exists():
-        return []
+    # 1. Fast path: load lightweight curated sample (<40 KB)
+    if SAMPLE_TXNS_PATH.exists():
+        try:
+            with open(SAMPLE_TXNS_PATH) as f:
+                _transactions_cache = json.load(f)
+            logger.info(f"Loaded {len(_transactions_cache)} sample transactions from JSON cache in <1ms.")
+            return _transactions_cache
+        except Exception as e:
+            logger.warning(f"Error reading sample_test_transactions.json: {e}")
 
-    try:
-        df = pd.read_csv(DATA_PATH, nrows=1000)
-        sample_rows = []
-        for idx, r in df.head(100).iterrows():
-            amt = float(r["amt"])
-            is_fraud = int(r["is_fraud"])
-            cc_last4 = str(r["cc_num"])[-4:] if pd.notna(r["cc_num"]) else "0000"
-            first_name = str(r.get("first", "")).strip()
-            last_name = str(r.get("last", "")).strip()
-            full_name = f"{first_name} {last_name}".strip() or "Cardholder"
+    # 2. Local fallback: parse from raw CSV if locally present
+    if DATA_PATH.exists():
+        try:
+            df = pd.read_csv(DATA_PATH, nrows=500)
+            sample_rows = []
+            for idx, r in df.head(100).iterrows():
+                amt = float(r["amt"])
+                is_fraud = int(r["is_fraud"])
+                cc_last4 = str(r["cc_num"])[-4:] if pd.notna(r["cc_num"]) else "0000"
+                first_name = str(r.get("first", "")).strip()
+                last_name = str(r.get("last", "")).strip()
+                full_name = f"{first_name} {last_name}".strip() or "Cardholder"
 
-            sample_rows.append({
-                "trans_num": str(r.get("trans_num", f"TX-{idx}")),
-                "customer": full_name,
-                "card_masked": f"•••• {cc_last4}",
-                "amount": f"${amt:,.2f}",
-                "amt_raw": amt,
-                "category": str(r.get("category", "")).replace("_", " ").title(),
-                "merchant": str(r.get("merchant", "")).replace("fraud_", "").replace("_", " ").title(),
-                "city_state": f"{r.get('city', '')}, {r.get('state', '')}",
-                "datetime": str(r.get("trans_date_trans_time", "")),
-                "is_fraud": is_fraud,
-                "risk_score": 90 + int(amt % 9) if is_fraud else max(2, int(amt % 15)),
-            })
-        _transactions_cache = sample_rows
-        return _transactions_cache
-    except Exception as e:
-        print(f"[Sentra] Error reading sample transactions: {e}")
-        return []
+                sample_rows.append({
+                    "trans_num": str(r.get("trans_num", f"TX-{idx}")),
+                    "customer": full_name,
+                    "card_masked": f"•••• {cc_last4}",
+                    "amount": f"${amt:,.2f}",
+                    "amt_raw": amt,
+                    "category": str(r.get("category", "")).replace("_", " ").title(),
+                    "merchant": str(r.get("merchant", "")).replace("fraud_", "").replace("_", " ").title(),
+                    "city_state": f"{r.get('city', '')}, {r.get('state', '')}",
+                    "datetime": str(r.get("trans_date_trans_time", "")),
+                    "is_fraud": is_fraud,
+                    "risk_score": 90 + int(amt % 9) if is_fraud else max(2, int(amt % 15)),
+                })
+            _transactions_cache = sample_rows
+            return _transactions_cache
+        except Exception as e:
+            logger.warning(f"Error reading sample transactions from CSV: {e}")
+
+    # 3. Graceful fallback from alerts queue
+    alerts = load_alert_queue()
+    sample_rows = []
+    for alert_id, a in list(alerts.items())[:25]:
+        sample_rows.append({
+            "trans_num": a.get("trans_num", alert_id),
+            "customer": a["customer"]["name"],
+            "card_masked": a["customer"]["card_masked"],
+            "amount": a["flagged_amount"],
+            "amt_raw": a["flagged_amount_raw"],
+            "category": a["category"].replace("_", " ").title(),
+            "merchant": a["merchant_clean"],
+            "city_state": f"{a['customer']['city']}, {a['customer']['state']}",
+            "datetime": a["detected_time"],
+            "is_fraud": 1 if a["risk_score"] >= 50 else 0,
+            "risk_score": a["risk_score"],
+        })
+    _transactions_cache = sample_rows
+    return _transactions_cache
 
 
 # ── Health Check Endpoint ──────────────────────────────────────────────────────
@@ -710,6 +744,7 @@ def api_model_metrics():
 
 
 if __name__ == "__main__":
-    port = 8080
-    print(f"[Sentra] Starting server on http://0.0.0.0:{port}...")
-    app.run(debug=True, host="0.0.0.0", port=port)
+    import os
+    port = int(os.environ.get("PORT", 7860))
+    logger.info(f"Starting server on http://0.0.0.0:{port}...")
+    app.run(debug=False, host="0.0.0.0", port=port)

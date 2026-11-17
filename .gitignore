@@ -35,16 +35,14 @@ data/*.parquet
 *.sqlite3
 data/*.db
 
-# Model artifacts
-models/*.joblib
-models/*.pkl
-models/*.pickle
-*.joblib
+# Model artifacts (whitelist serialized lightweight models for cloud deployment)
 *.pkl
 *.pickle
 *.pt
 *.pth
 *.onnx
+!models/*.joblib
+!models/*.json
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/

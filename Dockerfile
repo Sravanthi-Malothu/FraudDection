@@ -1,15 +1,15 @@
-# Sentra Fraud & AML Intelligence Platform - Containerized API & Dashboard
+# Sentra Fraud Detection & Alert Investigation Platform
+# Universal Container for Local Docker, Render, and Hugging Face Spaces
 FROM python:3.11-slim
 
-# Prevent Python from writing .pyc files and enable unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=5001 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    PORT=7860
 
 WORKDIR /app
 
-# Install system dependencies (libgomp1 for XGBoost OpenMP acceleration, curl for container health check)
+# Install system dependencies (OpenMP for XGBoost, curl for health check)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgomp1 \
@@ -20,21 +20,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application, ML components, documentation benchmarks, and alert cache
+# Create standard non-root user (UID 1000) required by Hugging Face Spaces
+RUN useradd -m -u 1000 user
+
+# Copy application code, trained models, documentation, and lightweight data caches
 COPY app/ ./app/
 COPY src/ ./src/
 COPY models/ ./models/
 COPY docs/ ./docs/
 COPY data/alerts_cache.json ./data/
+COPY data/sample_test_transactions.json ./data/
 
-# Ensure runtime directory for SQLite decisions database exists
-RUN mkdir -p data
+# Ensure data directory exists with write permissions for SQLite database persistence
+RUN mkdir -p /app/data && \
+    chown -R user:user /app && \
+    chmod -R 777 /app/data
 
-EXPOSE 5001
+# Switch to non-root user for security and Hugging Face Spaces compatibility
+USER user
 
-# Container health monitoring
+# Expose Hugging Face Spaces port (7860) and standard port (5001)
+EXPOSE 7860 5001
+
+# Health check adapted to dynamic port
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:5001/health || exit 1
+    CMD curl -f http://localhost:${PORT:-7860}/health || exit 1
 
-# Production WSGI server using Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "2", "--timeout", "60", "app.app:app"]
+# Production WSGI server using Gunicorn dynamically binding to $PORT (7860 on HF, dynamic on Render)
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-7860} --workers 2 --threads 2 --timeout 60 app.app:app"]
