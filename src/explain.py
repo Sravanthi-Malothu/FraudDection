@@ -24,7 +24,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.features import engineer_features, build_feature_dict, FEATURE_COLS, IDENTIFIER_COLS
-from src.train import load_full_dataset, time_based_split
 
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -356,6 +355,7 @@ def compute_and_save_shap_explanations(
     model, explainer = get_best_model_and_explainer(models_dir)
 
     # Load dataset and prepare test split
+    from src.train import load_full_dataset, time_based_split
     df_full = load_full_dataset(data_dir=data_dir)
     _, _, df_test = time_based_split(df_full, 0.70, 0.15, 0.15)
 

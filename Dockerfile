@@ -1,5 +1,5 @@
-# Base image: official Python 3.11 slim for Render's free tier (512 MB RAM)
-FROM python:3.11-slim
+# Base image: official Python 3.12 slim for Render's free tier (512 MB RAM)
+FROM python:3.12-slim
 
 # Environment settings
 ENV PYTHONDONTWRITEBYTECODE=1 \
