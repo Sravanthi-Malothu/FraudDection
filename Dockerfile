@@ -22,7 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code, trained models, documentation, and committed 5k sample
 COPY app/ ./app/
+COPY app.py ./app.py
 COPY wsgi.py ./wsgi.py
+COPY gunicorn.conf.py ./gunicorn.conf.py
 COPY src/ ./src/
 COPY models/ ./models/
 COPY docs/ ./docs/
